@@ -749,16 +749,9 @@ Você pode:
 
 # 📄 Licença
 
-Defina aqui a licença desejada para o projeto.
+Projeto disponibilizado gratuitamente.
 
-Exemplos:
-
-* MIT;
-* GPL-3.0;
-* Projeto privado;
-* Uso interno.
-
-> Antes de publicar o repositório, recomenda-se adicionar um arquivo `LICENSE` informando claramente as condições de utilização do código.
+Caso utilize ou modifique este sistema, os créditos são sempre bem-vindos.
 
 ---
 
@@ -766,4 +759,4 @@ Exemplos:
 
 **Sistema simples, leve e completo para controle de veículos, rotas, abastecimentos, lavagens, despesas e manutenção de frota.**
 
-Esse texto já pode ser colocado diretamente no arquivo **`README.md`** do repositório.
+
