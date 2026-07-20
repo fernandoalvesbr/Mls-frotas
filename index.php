@@ -559,6 +559,8 @@ $gastos_por_mes = array(); $consumo_por_veiculo = array();
 $relatorio_frota = array();
 
 $gastos_individuais_labels = array(); $gastos_individuais_data = array();
+$gastos_abastecimento_labels = array(); $gastos_abastecimento_data = array();
+$gastos_lavagem_labels = array(); $gastos_lavagem_data = array();
 $abs_para_grafico = $abastecimentos_filtrados;
 usort($abs_para_grafico, function($a, $b) { return strcmp($a['data'], $b['data']); });
 
@@ -581,6 +583,8 @@ foreach ($abs_para_grafico as $abs) {
     
     $gastos_individuais_labels[] = date('d/m/y', strtotime($abs['data'])) . ' (' . $p . ') - Abast.';
     $gastos_individuais_data[] = $abs['valor'];
+    $gastos_abastecimento_labels[] = date('d/m/y', strtotime($abs['data'])) . ' (' . $p . ') - Abast.';
+    $gastos_abastecimento_data[] = $abs['valor'];
 }
 
 // Lavagens entram exclusivamente nos gastos e nunca recebem litros/KM-L.
@@ -600,6 +604,8 @@ foreach ($lavagens_para_grafico as $lavagem) {
 
     $gastos_individuais_labels[] = date('d/m/y', strtotime($lavagem['data'])) . ' (' . $p . ') - Lavagem';
     $gastos_individuais_data[] = $lavagem['valor'];
+    $gastos_lavagem_labels[] = date('d/m/y', strtotime($lavagem['data'])) . ' (' . $p . ') - Lavagem';
+    $gastos_lavagem_data[] = $lavagem['valor'];
 }
 ksort($gastos_por_mes);
 
@@ -1005,10 +1011,14 @@ foreach ($abastecimentos_filtrados as $abs) {
                             <span class="fw-bold">Evolução de Gastos</span>
                             <select id="tipoGraficoGastos" class="form-select form-select-sm" style="width: auto; font-size: 0.85rem;">
                                 <option value="mes">Soma por Mês</option>
-                                <option value="abastecimento">Por Lançamento</option>
+                                <option value="abastecimento">Abastecimentos por Lançamento</option>
+                                <option value="lavagem">Lavagens por Lançamento</option>
                             </select>
                         </div>
-                        <div class="card-body"><div style="position: relative; height: 280px; width: 100%;"><canvas id="chartGastos"></canvas></div></div>
+                        <div class="card-body">
+                            <div id="chartGastosWrapper" style="position: relative; height: 280px; width: 100%;"><canvas id="chartGastos"></canvas></div>
+                            <div id="chartGastosLavagemWrapper" style="display:none; position: relative; height: 280px; width: 100%;"><canvas id="chartGastosLavagem"></canvas></div>
+                        </div>
                     </div>
                 </div>
                 <div class="col-md-6">
@@ -1069,11 +1079,16 @@ foreach ($abastecimentos_filtrados as $abs) {
                     
                     var labelsMes = <?php echo json_encode(array_keys($gastos_por_mes)); ?>;
                     var dataMes = <?php echo json_encode(array_values($gastos_por_mes)); ?>;
-                    var labelsAbs = <?php echo json_encode($gastos_individuais_labels); ?>;
-                    var dataAbs = <?php echo json_encode($gastos_individuais_data); ?>;
+                    var labelsAbs = <?php echo json_encode($gastos_abastecimento_labels); ?>;
+                    var dataAbs = <?php echo json_encode($gastos_abastecimento_data); ?>;
+                    var labelsLavagem = <?php echo json_encode($gastos_lavagem_labels); ?>;
+                    var dataLavagem = <?php echo json_encode($gastos_lavagem_data); ?>;
+                    var chartGastosWrapper = document.getElementById('chartGastosWrapper');
+                    var chartGastosLavagemWrapper = document.getElementById('chartGastosLavagemWrapper');
                     
                     if (labelsMes.length === 0) { labelsMes = ['Sem dados no período']; dataMes = [0]; }
                     if (labelsAbs.length === 0) { labelsAbs = ['Sem dados no período']; dataAbs = [0]; }
+                    if (labelsLavagem.length === 0) { labelsLavagem = ['Sem dados no período']; dataLavagem = [0]; }
                     
                     var ctxG = document.getElementById('chartGastos').getContext('2d');
                     var chartGastos = new Chart(ctxG, { 
@@ -1081,28 +1096,51 @@ foreach ($abastecimentos_filtrados as $abs) {
                         data: { labels: labelsMes, datasets: [{ label: 'Gastos (R$)', data: dataMes, borderColor: '#0b5ed7', backgroundColor: 'rgba(11, 94, 215, 0.2)', fill: true, tension: 0.3 }] }, 
                         options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: textColor } } }, scales: { x: { ticks: { color: textColor } }, y: { ticks: { color: textColor } } } } 
                     });
+
+                    var ctxGL = document.getElementById('chartGastosLavagem').getContext('2d');
+                    var chartGastosLavagem = new Chart(ctxGL, {
+                        type: 'line',
+                        data: { labels: labelsLavagem, datasets: [{ label: 'Lavagens (R$)', data: dataLavagem, borderColor: '#198754', backgroundColor: 'rgba(25, 135, 84, 0.2)', fill: true, tension: 0.3 }] },
+                        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: textColor } } }, scales: { x: { ticks: { color: textColor } }, y: { ticks: { color: textColor } } } }
+                    });
+                    
+                    function aplicarGraficoGastos(tipo) {
+                        if (tipo === 'lavagem') {
+                            chartGastosWrapper.style.display = 'none';
+                            chartGastosLavagemWrapper.style.display = 'block';
+                            chartGastosLavagem.data.labels = labelsLavagem;
+                            chartGastosLavagem.data.datasets[0].data = dataLavagem;
+                            chartGastosLavagem.update();
+                            return;
+                        }
+
+                        chartGastosLavagemWrapper.style.display = 'none';
+                        chartGastosWrapper.style.display = 'block';
+
+                        if (tipo === 'mes') {
+                            chartGastos.data.labels = labelsMes;
+                            chartGastos.data.datasets[0].data = dataMes;
+                            chartGastos.data.datasets[0].label = 'Gastos (R$)';
+                        } else {
+                            chartGastos.data.labels = labelsAbs;
+                            chartGastos.data.datasets[0].data = dataAbs;
+                            chartGastos.data.datasets[0].label = 'Abastecimentos (R$)';
+                        }
+
+                        chartGastos.update();
+                    }
                     
                     var selectGrafico = document.getElementById('tipoGraficoGastos');
                     if (selectGrafico) {
                         var savedPref = localStorage.getItem('pref_grafico_gastos');
                         if (savedPref) {
                             selectGrafico.value = savedPref;
-                            if (savedPref === 'abastecimento') {
-                                chartGastos.data.labels = labelsAbs;
-                                chartGastos.data.datasets[0].data = dataAbs;
-                                chartGastos.update();
-                            }
                         }
+                        aplicarGraficoGastos(selectGrafico.value || 'mes');
+
                         selectGrafico.addEventListener('change', function() {
                             localStorage.setItem('pref_grafico_gastos', this.value);
-                            if (this.value === 'mes') {
-                                chartGastos.data.labels = labelsMes;
-                                chartGastos.data.datasets[0].data = dataMes;
-                            } else {
-                                chartGastos.data.labels = labelsAbs;
-                                chartGastos.data.datasets[0].data = dataAbs;
-                            }
-                            chartGastos.update();
+                            aplicarGraficoGastos(this.value);
                         });
                     }
 
