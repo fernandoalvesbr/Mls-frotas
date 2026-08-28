@@ -12,7 +12,8 @@ $arquivos = array(
     'tecnicos' => 'tecnicos.json',
     'usuarios' => 'usuarios.json',
     'cartoes' => 'cartoes.json',
-    'lavagens' => 'lavagens.json'
+    'lavagens' => 'lavagens.json',
+    'emprestimos' => 'emprestimos.json'
 );
 
 function lerDados($arquivo) {
@@ -148,6 +149,7 @@ $utilizacao = lerDados($arquivos['utilizacao']);
 $tecnicos = lerDados($arquivos['tecnicos']);
 $cartoes = lerDados($arquivos['cartoes']);
 $lavagens = lerDados($arquivos['lavagens']);
+$emprestimos = lerDados($arquivos['emprestimos']);
 
 usort($tecnicos, function($a, $b) { return strcasecmp(isset($a['nome']) ? $a['nome'] : '', isset($b['nome']) ? $b['nome'] : ''); });
 
@@ -334,6 +336,43 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao'])) {
             else { $lavagens[] = $novo; $_SESSION['msg'] = "Lavagem registada!"; }
             salvarDados($arquivos['lavagens'], $lavagens); $tab = 'lavagens';
         }
+        elseif ($acao === 'salvar_emprestimo') {
+            $id = !empty($_POST['emprestimo_id']) ? $_POST['emprestimo_id'] : uniqid();
+            
+            $fotoRetiradaAtual = '';
+            $fotoEntregaAtual = '';
+            $criado_por = $_SESSION['username'];
+            $editado_por = '';
+            
+            if (!empty($_POST['emprestimo_id'])) {
+                foreach ($emprestimos as $e) {
+                    if ($e['id'] === $id) {
+                        $fotoRetiradaAtual = isset($e['foto_retirada']) ? $e['foto_retirada'] : '';
+                        $fotoEntregaAtual = isset($e['foto_entrega']) ? $e['foto_entrega'] : '';
+                        $criado_por = isset($e['criado_por']) ? $e['criado_por'] : 'Desconhecido';
+                        $editado_por = $_SESSION['username'];
+                        break;
+                    }
+                }
+            }
+            if (isset($_POST['remover_foto_retirada']) && $_POST['remover_foto_retirada'] == '1') { if ($fotoRetiradaAtual && file_exists($fotoRetiradaAtual)) { unlink($fotoRetiradaAtual); } $fotoRetiradaAtual = ''; }
+            if (isset($_POST['remover_foto_entrega']) && $_POST['remover_foto_entrega'] == '1') { if ($fotoEntregaAtual && file_exists($fotoEntregaAtual)) { unlink($fotoEntregaAtual); } $fotoEntregaAtual = ''; }
+            
+            $novaFotoRetirada = fazerUpload($_FILES['foto_retirada']);
+            if ($novaFotoRetirada !== '') { if ($fotoRetiradaAtual && file_exists($fotoRetiradaAtual)) { unlink($fotoRetiradaAtual); } $fotoRetiradaAtual = $novaFotoRetirada; }
+            $novaFotoEntrega = fazerUpload($_FILES['foto_entrega']);
+            if ($novaFotoEntrega !== '') { if ($fotoEntregaAtual && file_exists($fotoEntregaAtual)) { unlink($fotoEntregaAtual); } $fotoEntregaAtual = $novaFotoEntrega; }
+
+            $novo = array(
+                'id' => $id, 'data' => $_POST['data'], 'condutor' => trim($_POST['condutor']), 'placa' => $_POST['placa'],
+                'setor' => trim($_POST['setor']), 'tipo_setor' => $_POST['tipo_setor'], 'km_retirada' => (int)$_POST['km_retirada'], 'km_entrega' => (int)$_POST['km_entrega'],
+                'hora' => $_POST['hora'], 'foto_retirada' => $fotoRetiradaAtual, 'foto_entrega' => $fotoEntregaAtual,
+                'criado_por' => $criado_por, 'editado_por' => $editado_por
+            );
+            if (!empty($_POST['emprestimo_id'])) { foreach ($emprestimos as $k => $v) { if ($v['id'] === $id) { $emprestimos[$k] = $novo; break; } } $_SESSION['msg'] = "Empréstimo atualizado!"; } 
+            else { $emprestimos[] = $novo; $_SESSION['msg'] = "Empréstimo registado!"; }
+            salvarDados($arquivos['emprestimos'], $emprestimos); $tab = 'emprestimos';
+        }
         elseif ($acao === 'salvar_utilizacao') {
             $id = !empty($_POST['utilizacao_id']) ? $_POST['utilizacao_id'] : uniqid();
             
@@ -410,6 +449,8 @@ if (isset($_GET['excluir']) && isset($_GET['tipo']) && $isAdmin) {
         foreach ($abastecimentos as $k => $v) { if ($v['id'] === $id) { if(!empty($v['anexo']) && file_exists($v['anexo'])) { unlink($v['anexo']); } unset($abastecimentos[$k]); } } salvarDados($arquivos['abastecimentos'], $abastecimentos); $_SESSION['msg'] = "Registo excluído!"; $tab = 'abastecimentos';
     } elseif ($tipo === 'lavagem') {
         foreach ($lavagens as $k => $v) { if ($v['id'] === $id) { if(!empty($v['anexo']) && file_exists($v['anexo'])) { unlink($v['anexo']); } unset($lavagens[$k]); } } salvarDados($arquivos['lavagens'], $lavagens); $_SESSION['msg'] = "Lavagem excluída!"; $tab = 'lavagens';
+    } elseif ($tipo === 'emprestimo') {
+        foreach ($emprestimos as $k => $v) { if ($v['id'] === $id) { if(!empty($v['foto_retirada']) && file_exists($v['foto_retirada'])) { unlink($v['foto_retirada']); } if(!empty($v['foto_entrega']) && file_exists($v['foto_entrega'])) { unlink($v['foto_entrega']); } unset($emprestimos[$k]); } } salvarDados($arquivos['emprestimos'], $emprestimos); $_SESSION['msg'] = "Empréstimo excluído!"; $tab = 'emprestimos';
     } elseif ($tipo === 'utilizacao') {
         foreach ($utilizacao as $k => $v) { if ($v['id'] === $id) unset($utilizacao[$k]); } salvarDados($arquivos['utilizacao'], $utilizacao); $_SESSION['msg'] = "Registo excluído!"; $tab = 'utilizacao';
     }
@@ -501,11 +542,12 @@ else { $data_fim = isset($_COOKIE['filtro_data_fim']) ? $_COOKIE['filtro_data_fi
 if (isset($_GET['filtro_placa'])) { $filtro_placa = $_GET['filtro_placa']; setcookie('filtro_placa', $filtro_placa, time() + (86400 * 30), "/"); } 
 else { $filtro_placa = isset($_COOKIE['filtro_placa']) ? $_COOKIE['filtro_placa'] : ''; }
 
-$veiculo_edit = null; $abastecimento_edit = null; $lavagem_edit = null; $utilizacao_edit = null; $cartao_edit = null; $tecnico_edit = null;
+$veiculo_edit = null; $abastecimento_edit = null; $lavagem_edit = null; $emprestimo_edit = null; $utilizacao_edit = null; $cartao_edit = null; $tecnico_edit = null;
 if ($isAdmin) {
     if (isset($_GET['edit_veiculo'])) { foreach ($veiculos as $v) { if ($v['id'] === $_GET['edit_veiculo']) { $veiculo_edit = $v; $tab_ativa = 'veiculos'; break; } } }
     if (isset($_GET['edit_abastecimento'])) { foreach ($abastecimentos as $a) { if ($a['id'] === $_GET['edit_abastecimento']) { $abastecimento_edit = $a; $tab_ativa = 'abastecimentos'; break; } } }
     if (isset($_GET['edit_lavagem'])) { foreach ($lavagens as $l) { if ($l['id'] === $_GET['edit_lavagem']) { $lavagem_edit = $l; $tab_ativa = 'lavagens'; break; } } }
+    if (isset($_GET['edit_emprestimo'])) { foreach ($emprestimos as $e) { if ($e['id'] === $_GET['edit_emprestimo']) { $emprestimo_edit = $e; $tab_ativa = 'emprestimos'; break; } } }
     if (isset($_GET['edit_utilizacao'])) { foreach ($utilizacao as $u) { if ($u['id'] === $_GET['edit_utilizacao']) { $utilizacao_edit = $u; $tab_ativa = 'utilizacao'; break; } } }
     if (isset($_GET['edit_cartao'])) { foreach ($cartoes as $c) { if ($c['id'] === $_GET['edit_cartao']) { $cartao_edit = $c; $tab_ativa = 'cartoes'; break; } } }
     if (isset($_GET['edit_tecnico'])) { foreach ($tecnicos as $t) { if ($t['id'] === $_GET['edit_tecnico']) { $tecnico_edit = $t; $tab_ativa = 'tecnicos'; break; } } }
@@ -533,6 +575,7 @@ function aplicarFiltros($dados, $dt_ini, $dt_fim, $placa) {
 }
 $abastecimentos_filtrados = aplicarFiltros($abastecimentos, $data_inicio, $data_fim, $filtro_placa);
 $lavagens_filtradas = aplicarFiltros($lavagens, $data_inicio, $data_fim, $filtro_placa);
+$emprestimos_filtrados = aplicarFiltros($emprestimos, $data_inicio, $data_fim, $filtro_placa);
 $utilizacao_filtrada = aplicarFiltros($utilizacao, $data_inicio, $data_fim, $filtro_placa);
 
 $sort_col = isset($_GET['sort_col']) ? $_GET['sort_col'] : (isset($_COOKIE['sort_col']) ? $_COOKIE['sort_col'] : 'data');
@@ -555,9 +598,10 @@ $funcaoOrdenacao = function($a, $b) use ($sort_col, $sort_dir) {
 usort($utilizacao_filtrada, $funcaoOrdenacao);
 usort($abastecimentos_filtrados, $funcaoOrdenacao);
 usort($lavagens_filtradas, $funcaoOrdenacao);
+usort($emprestimos_filtrados, $funcaoOrdenacao);
 
 // Exportar CSV
-if (isset($_GET['export']) && $_GET['export'] === 'csv' && in_array($tab_ativa, array('utilizacao', 'abastecimentos', 'lavagens'))) {
+if (isset($_GET['export']) && $_GET['export'] === 'csv' && in_array($tab_ativa, array('utilizacao', 'abastecimentos', 'lavagens', 'emprestimos'))) {
     header('Content-Type: text/csv; charset=utf-8'); header('Content-Disposition: attachment; filename=relatorio_' . $tab_ativa . '_' . date('Ymd_His') . '.csv');
     $output = fopen('php://output', 'w'); fputs($output, $bom =( chr(0xEF) . chr(0xBB) . chr(0xBF) ));
     if ($tab_ativa === 'abastecimentos') {
@@ -578,6 +622,12 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv' && in_array($tab_ativa, 
         fputcsv($output, array('Data', 'Condutor', 'Rota', 'Placa', 'KM Inicial', 'KM Final', 'Total KM'), ';');
         foreach ($utilizacao_filtrada as $linha) {
             fputcsv($output, array(date('d/m/Y', strtotime($linha['data'])), $linha['condutor'], $linha['rota'], $linha['placa'], $linha['km_inicial'], $linha['km_final'], ($linha['km_final'] - $linha['km_inicial'])), ';');
+        }
+    } elseif ($tab_ativa === 'emprestimos') {
+        fputcsv($output, array('Data', 'Hora', 'Condutor', 'Placa', 'Setor', 'Tipo Setor', 'KM Retirada', 'KM Entrega', 'Total KM'), ';');
+        foreach ($emprestimos_filtrados as $linha) {
+            $km_total = ((int)$linha['km_entrega'] > (int)$linha['km_retirada']) ? ((int)$linha['km_entrega'] - (int)$linha['km_retirada']) : 0;
+            fputcsv($output, array(date('d/m/Y', strtotime($linha['data'])), $linha['hora'], $linha['condutor'], $linha['placa'], $linha['setor'], isset($linha['tipo_setor']) ? $linha['tipo_setor'] : '', $linha['km_retirada'], $linha['km_entrega'], $km_total), ';');
         }
     } fclose($output); exit;
 }
@@ -994,7 +1044,7 @@ foreach ($abastecimentos_filtrados as $abs) {
                 <div class="col-auto">
                     <button type="submit" class="btn btn-primary"><i class="bi bi-search"></i> Filtrar</button>
                     <a href="?clear_filters=1&tab=<?php echo htmlspecialchars($tab_ativa); ?>" class="btn btn-secondary" title="Apagar memória de filtro">Limpar</a>
-                    <?php if(in_array($tab_ativa, array('utilizacao', 'abastecimentos', 'lavagens'))): ?>
+                    <?php if(in_array($tab_ativa, array('utilizacao', 'abastecimentos', 'lavagens', 'emprestimos'))): ?>
                         <button type="submit" name="export" value="csv" class="btn btn-success ms-2"><i class="bi bi-file-earmark-excel"></i> Exportar CSV</button>
                     <?php endif; ?>
                     <?php if($tab_ativa === 'dashboard'): ?>
@@ -1017,6 +1067,7 @@ foreach ($abastecimentos_filtrados as $abs) {
         <li class="nav-item"><a class="nav-link <?php echo $tab_ativa === 'cartoes' ? 'active' : ''; ?>" href="?tab=cartoes"><i class="bi bi-credit-card"></i> Cartões</a></li>
         <li class="nav-item"><a class="nav-link <?php echo $tab_ativa === 'usuarios' ? 'active' : ''; ?> text-danger" href="?tab=usuarios"><i class="bi bi-shield-lock"></i> Acessos</a></li>
         <?php endif; ?>
+        <li class="nav-item"><a class="nav-link <?php echo $tab_ativa === 'emprestimos' ? 'active' : ''; ?>" href="?tab=emprestimos"><i class="bi bi-car-front-fill"></i> Empréstimo de Carro</a></li>
         <li class="nav-item ms-auto"><a class="nav-link <?php echo $tab_ativa === 'perfil' ? 'active' : ''; ?>" href="?tab=perfil"><i class="bi bi-key"></i> Senha</a></li>
     </ul>
 
@@ -1724,6 +1775,74 @@ foreach ($abastecimentos_filtrados as $abs) {
                                                 <a href="?tab=cartoes&edit_cartao=<?php echo $c['id']; ?>" class="btn btn-primary btn-sm"><i class="bi bi-pencil"></i></a> 
                                                 <button type="button" class="btn btn-danger btn-sm" onclick="confirmDelete('?excluir=<?php echo $c['id']; ?>&tipo=cartao')"><i class="bi bi-trash"></i></button>
                                             </td>
+                                        </tr>
+                                        <?php endforeach; ?>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <?php endif; ?>
+
+        <!-- ABA: EMPRÉSTIMO DE CARRO -->
+        <?php if ($tab_ativa === 'emprestimos'): ?>
+        <div class="tab-pane active fade show">
+            <div class="row">
+                <?php if($isAdmin): ?>
+                <div class="col-md-3">
+                    <div class="card <?php echo $emprestimo_edit ? 'border-primary' : ''; ?>">
+                        <div class="card-header <?php echo $emprestimo_edit ? 'bg-primary text-white' : 'bg-light'; ?>"><b><?php echo $emprestimo_edit ? 'Editar Empréstimo' : 'Novo Empréstimo'; ?></b></div>
+                        <div class="card-body">
+                            <form method="POST" enctype="multipart/form-data">
+                                <input type="hidden" name="acao" value="salvar_emprestimo">
+                                <input type="hidden" name="emprestimo_id" value="<?php echo $emprestimo_edit ? $emprestimo_edit['id'] : ''; ?>">
+                                <div class="mb-2"><label>Data</label><input type="date" name="data" class="form-control" required value="<?php echo $emprestimo_edit ? $emprestimo_edit['data'] : date('Y-m-d'); ?>"></div>
+                                <div class="mb-2"><label>Hora</label><input type="time" name="hora" class="form-control" required value="<?php echo $emprestimo_edit && isset($emprestimo_edit['hora']) ? $emprestimo_edit['hora'] : date('H:i'); ?>"></div>
+                                <div class="mb-2"><label>Condutor</label><select name="condutor" class="form-select" required><option value="">Selecione...</option><?php foreach($tecnicos as $t): ?><option value="<?php echo htmlspecialchars($t['nome']); ?>" <?php echo ($emprestimo_edit && $emprestimo_edit['condutor'] === $t['nome']) ? 'selected' : ''; ?>><?php echo htmlspecialchars($t['nome']); ?></option><?php endforeach; ?></select></div>
+                                <div class="mb-2"><label>Veículo</label><select name="placa" class="form-select" required><option value="">Selecione...</option><?php foreach($veiculos as $v): if((isset($v['ativo']) && $v['ativo'] == 0) && (!$emprestimo_edit || $emprestimo_edit['placa'] !== $v['placa'])) continue; ?><option value="<?php echo htmlspecialchars($v['placa']); ?>" <?php echo ($emprestimo_edit && $emprestimo_edit['placa'] === $v['placa']) ? 'selected' : ''; ?>><?php echo htmlspecialchars($v['placa']); ?></option><?php endforeach; ?></select></div>
+                                <div class="mb-2"><label>Setor</label><input type="text" name="setor" class="form-control" value="<?php echo $emprestimo_edit && isset($emprestimo_edit['setor']) ? htmlspecialchars($emprestimo_edit['setor']) : ''; ?>" required></div>
+                                <div class="mb-2"><label>Tipo de Setor</label><select name="tipo_setor" class="form-select" required><option value="Setor pegou carro emprestado" <?php echo (!$emprestimo_edit || !isset($emprestimo_edit['tipo_setor']) || $emprestimo_edit['tipo_setor'] === 'Setor pegou carro emprestado') ? 'selected' : ''; ?>>Setor pegou carro emprestado</option><option value="Setor emprestou o carro" <?php echo ($emprestimo_edit && isset($emprestimo_edit['tipo_setor']) && $emprestimo_edit['tipo_setor'] === 'Setor emprestou o carro') ? 'selected' : ''; ?>>Setor emprestou o carro</option></select></div>
+                                <div class="mb-2"><label>KM na Retirada</label><input type="number" name="km_retirada" class="form-control" value="<?php echo $emprestimo_edit && isset($emprestimo_edit['km_retirada']) ? $emprestimo_edit['km_retirada'] : ''; ?>" required></div>
+                                <div class="mb-2"><label>KM na Entrega</label><input type="number" name="km_entrega" class="form-control" value="<?php echo $emprestimo_edit && isset($emprestimo_edit['km_entrega']) ? $emprestimo_edit['km_entrega'] : ''; ?>"></div>
+                                <div class="mb-2"><label>Foto da Retirada</label><input type="file" name="foto_retirada" class="form-control form-control-sm" accept=".jpg,.jpeg,.png,.pdf"><?php if($emprestimo_edit && !empty($emprestimo_edit['foto_retirada'])): ?><div class="mt-1 d-flex justify-content-between align-items-center"><small><a href="<?php echo $emprestimo_edit['foto_retirada']; ?>" target="_blank">Ver foto atual</a></small><label class="small text-danger"><input type="checkbox" name="remover_foto_retirada" value="1"> Remover</label></div><?php endif; ?></div>
+                                <div class="mb-3"><label>Foto da Devolução</label><input type="file" name="foto_entrega" class="form-control form-control-sm" accept=".jpg,.jpeg,.png,.pdf"><?php if($emprestimo_edit && !empty($emprestimo_edit['foto_entrega'])): ?><div class="mt-1 d-flex justify-content-between align-items-center"><small><a href="<?php echo $emprestimo_edit['foto_entrega']; ?>" target="_blank">Ver foto atual</a></small><label class="small text-danger"><input type="checkbox" name="remover_foto_entrega" value="1"> Remover</label></div><?php endif; ?></div>
+                                <button type="submit" class="btn btn-primary w-100 mb-2">Registar</button><?php if($emprestimo_edit): ?><a href="?tab=emprestimos" class="btn btn-outline-secondary w-100">Cancelar</a><?php endif; ?>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                <?php endif; ?>
+
+                <div class="<?php echo $isAdmin ? 'col-md-9' : 'col-md-12'; ?>">
+                    <div class="card">
+                        <div class="card-header bg-light"><b>Histórico de Empréstimos de Carro</b></div>
+                        <div class="card-body p-3">
+                            <div class="table-responsive">
+                                <table class="table table-striped table-hover align-middle mb-0">
+                                    <thead class="table-dark">
+                                        <tr>
+                                            <th><a href="<?php echo urlOrdenacao('data', $sort_col, $sort_dir, 'emprestimos'); ?>" class="text-white text-decoration-none">Data <?php echo $sort_col == 'data' ? ($sort_dir == 'asc' ? '↑' : '↓') : ''; ?></a></th>
+                                            <th>Hora</th>
+                                            <th><a href="<?php echo urlOrdenacao('condutor', $sort_col, $sort_dir, 'emprestimos'); ?>" class="text-white text-decoration-none">Condutor <?php echo $sort_col == 'condutor' ? ($sort_dir == 'asc' ? '↑' : '↓') : ''; ?></a></th>
+                                            <th><a href="<?php echo urlOrdenacao('placa', $sort_col, $sort_dir, 'emprestimos'); ?>" class="text-white text-decoration-none">Placa <?php echo $sort_col == 'placa' ? ($sort_dir == 'asc' ? '↑' : '↓') : ''; ?></a></th>
+                                            <th>Setor</th><th>Tipo</th><th>KM Ret.</th><th>KM Ent.</th><th>Total</th><th>Fotos</th>
+                                            <?php if($isAdmin): ?><th>Ação</th><?php endif; ?>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <?php foreach($emprestimos_filtrados as $emp): ?>
+                                        <?php $km_emp_total = ((int)$emp['km_entrega'] > (int)$emp['km_retirada']) ? ((int)$emp['km_entrega'] - (int)$emp['km_retirada']) : 0; ?>
+                                        <tr data-bs-toggle="tooltip" data-bs-placement="top" title="<?php echo getTooltipAuditoria($emp); ?>">
+                                            <td><?php echo date('d/m/Y', strtotime($emp['data'])); ?></td><td><?php echo isset($emp['hora']) ? htmlspecialchars($emp['hora']) : '-'; ?></td><td><?php echo htmlspecialchars($emp['condutor']); ?></td><td><span class="badge bg-secondary"><?php echo htmlspecialchars($emp['placa']); ?></span></td>
+                                            <td><?php echo isset($emp['setor']) ? htmlspecialchars($emp['setor']) : '-'; ?></td><td><?php echo isset($emp['tipo_setor']) ? htmlspecialchars($emp['tipo_setor']) : '-'; ?></td><td><?php echo isset($emp['km_retirada']) ? $emp['km_retirada'] : '-'; ?></td><td><?php echo !empty($emp['km_entrega']) ? $emp['km_entrega'] : '-'; ?></td><td><span class="badge bg-info text-dark"><?php echo $km_emp_total; ?> km</span></td>
+                                            <td>
+                                                <?php if(!empty($emp['foto_retirada'])): ?><a href="<?php echo $emp['foto_retirada']; ?>" target="_blank" class="badge bg-success text-decoration-none mb-1"><i class="bi bi-camera"></i> Retirada</a><?php else: ?><span class="badge bg-light text-muted mb-1">Retirada -</span><?php endif; ?>
+                                                <?php if(!empty($emp['foto_entrega'])): ?><a href="<?php echo $emp['foto_entrega']; ?>" target="_blank" class="badge bg-warning text-dark text-decoration-none mb-1"><i class="bi bi-camera-fill"></i> Devolução</a><?php else: ?><span class="badge bg-light text-muted mb-1">Devolução -</span><?php endif; ?>
+                                            </td>
+                                            <?php if($isAdmin): ?><td><a href="?tab=emprestimos&edit_emprestimo=<?php echo $emp['id']; ?>" class="btn btn-primary btn-sm"><i class="bi bi-pencil"></i></a> <button type="button" class="btn btn-danger btn-sm" onclick="confirmDelete('?excluir=<?php echo $emp['id']; ?>&tipo=emprestimo')"><i class="bi bi-trash"></i></button></td><?php endif; ?>
                                         </tr>
                                         <?php endforeach; ?>
                                     </tbody>
