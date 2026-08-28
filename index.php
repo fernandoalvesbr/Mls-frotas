@@ -283,7 +283,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao'])) {
                 'id' => $id, 'placa' => strtoupper(trim($_POST['placa'])), 'modelo' => trim($_POST['modelo']), 'tecnico' => trim($_POST['tecnico']),
                 'km_inicial' => $km_inicial, 'km_revisao' => $km_revisao, 'data_revisao' => $data_revisao,
                 'data_ipva' => $_POST['data_ipva'], 'data_seguro' => $_POST['data_seguro'], 'ativo' => $ativo, 'anexos' => $anexosAtuais,
-                'fotos_retirada' => $fotosRetiradaAtuais, 'fotos_entrega' => $fotosEntregaAtuais,
+                'fotos_retirada' => $fotosRetiradaAtuais, 'fotos_entrega' => $fotosEntregaAtuais, 'motivo_devolucao' => trim($_POST['motivo_devolucao']),
                 'criado_por' => $criado_por, 'editado_por' => $editado_por
             );
             if (!empty($_POST['veiculo_id'])) { foreach ($veiculos as $k => $v) { if ($v['id'] === $id) { $veiculos[$k] = $novo; break; } } $_SESSION['msg'] = "Veículo atualizado!"; } 
@@ -1525,6 +1525,12 @@ foreach ($abastecimentos_filtrados as $abs) {
                                             <?php endforeach; ?>
                                         </div>
                                     <?php endif; ?>
+                                    
+                                    <div class="mt-2 pt-2 border-top">
+                                        <label class="fw-bold mb-1 d-block">Motivo da Devolução</label>
+                                        <textarea name="motivo_devolucao" class="form-control form-control-sm" rows="3"><?php echo $veiculo_edit && isset($veiculo_edit['motivo_devolucao']) ? htmlspecialchars($veiculo_edit['motivo_devolucao']) : ''; ?></textarea>
+                                        <small class="text-muted d-block mt-1" style="font-size: 0.75rem;">Preenchimento opcional.</small>
+                                    </div>
                                 </div>
 
                                 <div class="mb-3 form-check"><input type="checkbox" class="form-check-input" id="checkAtivo" name="ativo" value="1" <?php echo (!$veiculo_edit || !isset($veiculo_edit['ativo']) || $veiculo_edit['ativo'] == 1) ? 'checked' : ''; ?>><label class="form-check-label fw-bold" for="checkAtivo">Veículo Ativo na Frota</label></div>
@@ -1585,6 +1591,14 @@ foreach ($abastecimentos_filtrados as $abs) {
                                                             <?php foreach($v['fotos_entrega'] as $i => $foto): ?>
                                                                 <a href="<?php echo $foto; ?>" target="_blank" class="badge bg-warning text-dark text-decoration-none mb-1" title="Foto Entrega <?php echo $i+1; ?>"><i class="bi bi-box-arrow-in-down"></i> Foto <?php echo $i+1; ?></a>
                                                             <?php endforeach; ?>
+                                                            <?php if(!empty($v['motivo_devolucao'])): ?>
+                                                                <small class="d-block mt-1"><b>Motivo da devolução:</b> <?php echo nl2br(htmlspecialchars($v['motivo_devolucao'])); ?></small>
+                                                            <?php endif; ?>
+                                                        </div>
+                                                    <?php elseif(!empty($v['motivo_devolucao'])): ?>
+                                                        <div class="mb-1">
+                                                            <small class="fw-bold text-muted docs-label d-block">Entrega do carro:</small>
+                                                            <small class="d-block"><b>Motivo da devolução:</b> <?php echo nl2br(htmlspecialchars($v['motivo_devolucao'])); ?></small>
                                                         </div>
                                                     <?php endif; ?>
                                                 <?php else: ?>
@@ -1994,6 +2008,16 @@ document.addEventListener('DOMContentLoaded', function() {
         placaDigitada.addEventListener('input', function() { this.value = this.value.toUpperCase(); });
         alternarCampoPlacaEmprestimo();
     }
+
+    document.querySelectorAll('form[enctype="multipart/form-data"]').forEach(function(form) {
+        form.addEventListener('submit', function() {
+            form.querySelectorAll('input[type="file"]').forEach(function(input) {
+                if (!input.files || input.files.length === 0) {
+                    input.disabled = true;
+                }
+            });
+        });
+    });
     
     var toggleSwitch = document.querySelector('#checkbox_theme');
     function switchTheme(e) {
