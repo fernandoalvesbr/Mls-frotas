@@ -823,6 +823,12 @@ foreach ($abastecimentos_filtrados as $abs) {
         body.dark-mode .text-muted { color: #adb5bd !important; }
         body.dark-mode .docs-label { color: #f1f3f5 !important; }
         body.dark-mode .text-danger { color: #ff6b6b !important; }
+        .gallery-viewer-body { min-height: 70vh; background: #111; }
+        .gallery-viewer-media { max-width: 100%; max-height: 75vh; object-fit: contain; transition: transform .12s ease; transform-origin: center center; }
+        .gallery-viewer-frame { width: 100%; height: 75vh; border: 0; background: #fff; }
+        .gallery-nav-btn { position: absolute; top: 50%; transform: translateY(-50%); z-index: 5; width: 46px; height: 46px; border-radius: 50%; }
+        .gallery-nav-prev { left: 16px; }
+        .gallery-nav-next { right: 16px; }
         
         .theme-switch-wrapper { display: flex; align-items: center; }
         .theme-switch { display: inline-block; height: 24px; position: relative; width: 50px; margin-bottom: 0; }
@@ -1581,7 +1587,7 @@ foreach ($abastecimentos_filtrados as $abs) {
                                                         <div class="mb-1">
                                                             <small class="fw-bold text-muted docs-label d-block">Retirada do carro:</small>
                                                             <?php foreach($v['fotos_retirada'] as $i => $foto): ?>
-                                                                <a href="<?php echo $foto; ?>" target="_blank" class="badge bg-info text-dark text-decoration-none mb-1" title="Foto Retirada <?php echo $i+1; ?>"><i class="bi bi-box-arrow-up"></i> Foto <?php echo $i+1; ?></a>
+                                                                <a href="<?php echo $foto; ?>" target="_blank" class="badge bg-info text-dark text-decoration-none mb-1 gallery-photo" data-gallery="veiculo-<?php echo htmlspecialchars($v['id']); ?>-retirada" data-gallery-title="Retirada do carro" title="Foto Retirada <?php echo $i+1; ?>"><i class="bi bi-box-arrow-up"></i> Foto <?php echo $i+1; ?></a>
                                                             <?php endforeach; ?>
                                                         </div>
                                                     <?php endif; ?>
@@ -1589,7 +1595,7 @@ foreach ($abastecimentos_filtrados as $abs) {
                                                         <div class="mb-1">
                                                             <small class="fw-bold text-muted docs-label d-block">Entrega do carro:</small>
                                                             <?php foreach($v['fotos_entrega'] as $i => $foto): ?>
-                                                                <a href="<?php echo $foto; ?>" target="_blank" class="badge bg-warning text-dark text-decoration-none mb-1" title="Foto Entrega <?php echo $i+1; ?>"><i class="bi bi-box-arrow-in-down"></i> Foto <?php echo $i+1; ?></a>
+                                                                <a href="<?php echo $foto; ?>" target="_blank" class="badge bg-warning text-dark text-decoration-none mb-1 gallery-photo" data-gallery="veiculo-<?php echo htmlspecialchars($v['id']); ?>-entrega" data-gallery-title="Entrega do carro" title="Foto Entrega <?php echo $i+1; ?>"><i class="bi bi-box-arrow-in-down"></i> Foto <?php echo $i+1; ?></a>
                                                             <?php endforeach; ?>
                                                             <?php if(!empty($v['motivo_devolucao'])): ?>
                                                                 <small class="d-block mt-1"><b>Motivo da devolução:</b> <?php echo nl2br(htmlspecialchars($v['motivo_devolucao'])); ?></small>
@@ -1896,8 +1902,8 @@ foreach ($abastecimentos_filtrados as $abs) {
                                             <td>
                                                 <?php $fotos_ret = isset($emp['fotos_retirada']) && is_array($emp['fotos_retirada']) ? $emp['fotos_retirada'] : (!empty($emp['foto_retirada']) ? array($emp['foto_retirada']) : array()); ?>
                                                 <?php $fotos_ent = isset($emp['fotos_entrega']) && is_array($emp['fotos_entrega']) ? $emp['fotos_entrega'] : (!empty($emp['foto_entrega']) ? array($emp['foto_entrega']) : array()); ?>
-                                                <?php if(!empty($fotos_ret)): ?><?php foreach($fotos_ret as $i => $foto): ?><a href="<?php echo $foto; ?>" target="_blank" class="badge bg-success text-decoration-none mb-1"><i class="bi bi-camera"></i> Retirada <?php echo $i+1; ?></a> <?php endforeach; ?><?php else: ?><span class="badge bg-light text-muted mb-1">Retirada -</span><?php endif; ?>
-                                                <?php if(!empty($fotos_ent)): ?><?php foreach($fotos_ent as $i => $foto): ?><a href="<?php echo $foto; ?>" target="_blank" class="badge bg-warning text-dark text-decoration-none mb-1"><i class="bi bi-camera-fill"></i> Devolução <?php echo $i+1; ?></a> <?php endforeach; ?><?php else: ?><span class="badge bg-light text-muted mb-1">Devolução -</span><?php endif; ?>
+                                                <?php if(!empty($fotos_ret)): ?><?php foreach($fotos_ret as $i => $foto): ?><a href="<?php echo $foto; ?>" target="_blank" class="badge bg-success text-decoration-none mb-1 gallery-photo" data-gallery="emprestimo-<?php echo htmlspecialchars($emp['id']); ?>-retirada" data-gallery-title="Retirada do empréstimo"><i class="bi bi-camera"></i> Retirada <?php echo $i+1; ?></a> <?php endforeach; ?><?php else: ?><span class="badge bg-light text-muted mb-1">Retirada -</span><?php endif; ?>
+                                                <?php if(!empty($fotos_ent)): ?><?php foreach($fotos_ent as $i => $foto): ?><a href="<?php echo $foto; ?>" target="_blank" class="badge bg-warning text-dark text-decoration-none mb-1 gallery-photo" data-gallery="emprestimo-<?php echo htmlspecialchars($emp['id']); ?>-devolucao" data-gallery-title="Devolução do empréstimo"><i class="bi bi-camera-fill"></i> Devolução <?php echo $i+1; ?></a> <?php endforeach; ?><?php else: ?><span class="badge bg-light text-muted mb-1">Devolução -</span><?php endif; ?>
                                             </td>
                                             <?php if($isAdmin): ?><td><a href="?tab=emprestimos&edit_emprestimo=<?php echo $emp['id']; ?>" class="btn btn-primary btn-sm"><i class="bi bi-pencil"></i></a> <button type="button" class="btn btn-danger btn-sm" onclick="confirmDelete('?excluir=<?php echo $emp['id']; ?>&tipo=emprestimo')"><i class="bi bi-trash"></i></button></td><?php endif; ?>
                                         </tr>
@@ -1947,6 +1953,26 @@ foreach ($abastecimentos_filtrados as $abs) {
 
 <div class="modal fade" id="deleteModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-sm modal-dialog-centered"><div class="modal-content"><div class="modal-header bg-danger text-white"><h5 class="modal-title"><i class="bi bi-exclamation-triangle"></i> Atenção</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div><div class="modal-body text-center mt-2"><b>Deseja excluir este registo?</b><br><small class="text-muted">Ação irreversível.</small></div><div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button><a href="#" id="confirmDeleteBtn" class="btn btn-danger">Sim, Excluir</a></div></div></div>
+</div>
+
+<div class="modal fade" id="galleryModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-centered">
+    <div class="modal-content bg-dark text-white">
+      <div class="modal-header border-secondary">
+        <h5 class="modal-title" id="galleryModalTitle">Fotos</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body gallery-viewer-body d-flex align-items-center justify-content-center position-relative">
+        <button type="button" class="btn btn-light gallery-nav-btn gallery-nav-prev" id="galleryPrevBtn" title="Foto anterior"><i class="bi bi-chevron-left"></i></button>
+        <div id="galleryMediaWrap" class="w-100 text-center"></div>
+        <button type="button" class="btn btn-light gallery-nav-btn gallery-nav-next" id="galleryNextBtn" title="Próxima foto"><i class="bi bi-chevron-right"></i></button>
+      </div>
+      <div class="modal-footer border-secondary justify-content-between">
+        <small id="galleryCounter" class="text-white-50"></small>
+        <a href="#" target="_blank" id="galleryOpenBtn" class="btn btn-outline-light btn-sm"><i class="bi bi-box-arrow-up-right"></i> Abrir</a>
+      </div>
+    </div>
+  </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
@@ -2017,6 +2043,97 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             });
         });
+    });
+
+    var galleryModalEl = document.getElementById('galleryModal');
+    var galleryMediaWrap = document.getElementById('galleryMediaWrap');
+    var galleryTitle = document.getElementById('galleryModalTitle');
+    var galleryCounter = document.getElementById('galleryCounter');
+    var galleryOpenBtn = document.getElementById('galleryOpenBtn');
+    var galleryPrevBtn = document.getElementById('galleryPrevBtn');
+    var galleryNextBtn = document.getElementById('galleryNextBtn');
+    var galleryModal = galleryModalEl ? new bootstrap.Modal(galleryModalEl) : null;
+    var galleryItems = [];
+    var galleryIndex = 0;
+    var galleryZoom = 1;
+
+    function isPdf(src) {
+        return src.split('?')[0].toLowerCase().endsWith('.pdf');
+    }
+
+    function renderGalleryItem() {
+        if (!galleryItems.length) return;
+        var item = galleryItems[galleryIndex];
+        galleryZoom = 1;
+        galleryMediaWrap.innerHTML = '';
+        if (isPdf(item.href)) {
+            var frame = document.createElement('iframe');
+            frame.src = item.href;
+            frame.className = 'gallery-viewer-frame';
+            galleryMediaWrap.appendChild(frame);
+        } else {
+            var img = document.createElement('img');
+            img.src = item.href;
+            img.alt = item.title;
+            img.className = 'gallery-viewer-media';
+            img.style.transform = 'scale(' + galleryZoom + ')';
+            galleryMediaWrap.appendChild(img);
+        }
+        galleryTitle.textContent = item.groupTitle;
+        galleryCounter.textContent = (galleryIndex + 1) + ' de ' + galleryItems.length;
+        galleryOpenBtn.href = item.href;
+        galleryPrevBtn.style.display = galleryItems.length > 1 ? '' : 'none';
+        galleryNextBtn.style.display = galleryItems.length > 1 ? '' : 'none';
+    }
+
+    function applyGalleryZoom(step) {
+        var img = galleryMediaWrap ? galleryMediaWrap.querySelector('.gallery-viewer-media') : null;
+        if (!img) return;
+        galleryZoom = Math.min(5, Math.max(0.5, galleryZoom + step));
+        img.style.transform = 'scale(' + galleryZoom + ')';
+    }
+
+    function moveGallery(step) {
+        if (!galleryItems.length) return;
+        galleryIndex = (galleryIndex + step + galleryItems.length) % galleryItems.length;
+        renderGalleryItem();
+    }
+
+    document.querySelectorAll('.gallery-photo').forEach(function(link) {
+        link.addEventListener('click', function(event) {
+            event.preventDefault();
+            var galleryName = link.getAttribute('data-gallery');
+            var groupLinks = [].slice.call(document.querySelectorAll('.gallery-photo[data-gallery="' + galleryName + '"]'));
+            galleryItems = groupLinks.map(function(itemLink, idx) {
+                return {
+                    href: itemLink.getAttribute('href'),
+                    title: itemLink.getAttribute('title') || itemLink.textContent.trim() || ('Foto ' + (idx + 1)),
+                    groupTitle: itemLink.getAttribute('data-gallery-title') || 'Fotos'
+                };
+            });
+            galleryIndex = Math.max(0, groupLinks.indexOf(link));
+            renderGalleryItem();
+            galleryModal.show();
+        });
+    });
+
+    if (galleryPrevBtn && galleryNextBtn) {
+        galleryPrevBtn.addEventListener('click', function() { moveGallery(-1); });
+        galleryNextBtn.addEventListener('click', function() { moveGallery(1); });
+    }
+
+    if (galleryMediaWrap) {
+        galleryMediaWrap.addEventListener('wheel', function(event) {
+            if (!galleryModalEl || !galleryModalEl.classList.contains('show')) return;
+            event.preventDefault();
+            applyGalleryZoom(event.deltaY < 0 ? 0.15 : -0.15);
+        }, { passive: false });
+    }
+
+    document.addEventListener('keydown', function(event) {
+        if (!galleryModalEl || !galleryModalEl.classList.contains('show')) return;
+        if (event.key === 'ArrowLeft') moveGallery(-1);
+        if (event.key === 'ArrowRight') moveGallery(1);
     });
     
     var toggleSwitch = document.querySelector('#checkbox_theme');
