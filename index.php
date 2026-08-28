@@ -1801,10 +1801,11 @@ foreach ($abastecimentos_filtrados as $abs) {
                                 <input type="hidden" name="emprestimo_id" value="<?php echo $emprestimo_edit ? $emprestimo_edit['id'] : ''; ?>">
                                 <div class="mb-2"><label>Data</label><input type="date" name="data" class="form-control" required value="<?php echo $emprestimo_edit ? $emprestimo_edit['data'] : date('Y-m-d'); ?>"></div>
                                 <div class="mb-2"><label>Hora</label><input type="time" name="hora" class="form-control" required value="<?php echo $emprestimo_edit && isset($emprestimo_edit['hora']) ? $emprestimo_edit['hora'] : date('H:i'); ?>"></div>
-                                <div class="mb-2"><label>Condutor</label><select name="condutor" class="form-select" required><option value="">Selecione...</option><?php foreach($tecnicos as $t): ?><option value="<?php echo htmlspecialchars($t['nome']); ?>" <?php echo ($emprestimo_edit && $emprestimo_edit['condutor'] === $t['nome']) ? 'selected' : ''; ?>><?php echo htmlspecialchars($t['nome']); ?></option><?php endforeach; ?></select></div>
-                                <div class="mb-2"><label>Veículo</label><select name="placa" class="form-select" required><option value="">Selecione...</option><?php foreach($veiculos as $v): if((isset($v['ativo']) && $v['ativo'] == 0) && (!$emprestimo_edit || $emprestimo_edit['placa'] !== $v['placa'])) continue; ?><option value="<?php echo htmlspecialchars($v['placa']); ?>" <?php echo ($emprestimo_edit && $emprestimo_edit['placa'] === $v['placa']) ? 'selected' : ''; ?>><?php echo htmlspecialchars($v['placa']); ?></option><?php endforeach; ?></select></div>
                                 <div class="mb-2"><label>Setor</label><input type="text" name="setor" class="form-control" value="<?php echo $emprestimo_edit && isset($emprestimo_edit['setor']) ? htmlspecialchars($emprestimo_edit['setor']) : ''; ?>" required></div>
-                                <div class="mb-2"><label>Tipo de Setor</label><select name="tipo_setor" class="form-select" required><option value="Setor pegou carro emprestado" <?php echo (!$emprestimo_edit || !isset($emprestimo_edit['tipo_setor']) || $emprestimo_edit['tipo_setor'] === 'Setor pegou carro emprestado') ? 'selected' : ''; ?>>Setor pegou carro emprestado</option><option value="Setor emprestou o carro" <?php echo ($emprestimo_edit && isset($emprestimo_edit['tipo_setor']) && $emprestimo_edit['tipo_setor'] === 'Setor emprestou o carro') ? 'selected' : ''; ?>>Setor emprestou o carro</option></select></div>
+                                <div class="mb-2"><label>Tipo de Setor</label><select name="tipo_setor" id="tipo_setor_emprestimo" class="form-select" required><option value="Setor pegou carro emprestado" <?php echo (!$emprestimo_edit || !isset($emprestimo_edit['tipo_setor']) || $emprestimo_edit['tipo_setor'] === 'Setor pegou carro emprestado') ? 'selected' : ''; ?>>Setor pegou carro emprestado</option><option value="Setor emprestou o carro" <?php echo ($emprestimo_edit && isset($emprestimo_edit['tipo_setor']) && $emprestimo_edit['tipo_setor'] === 'Setor emprestou o carro') ? 'selected' : ''; ?>>Setor emprestou o carro</option></select></div>
+                                <div class="mb-2" id="placa_digitada_wrap"><label>Placa</label><input type="text" name="placa" id="placa_digitada_emprestimo" class="form-control text-uppercase" value="<?php echo $emprestimo_edit && isset($emprestimo_edit['placa']) ? htmlspecialchars($emprestimo_edit['placa']) : ''; ?>" required></div>
+                                <div class="mb-2" id="placa_frota_wrap"><label>Veículo</label><select name="placa" id="placa_frota_emprestimo" class="form-select" required><option value="">Selecione...</option><?php foreach($veiculos as $v): if((isset($v['ativo']) && $v['ativo'] == 0) && (!$emprestimo_edit || $emprestimo_edit['placa'] !== $v['placa'])) continue; ?><option value="<?php echo htmlspecialchars($v['placa']); ?>" <?php echo ($emprestimo_edit && $emprestimo_edit['placa'] === $v['placa']) ? 'selected' : ''; ?>><?php echo htmlspecialchars($v['placa']); ?></option><?php endforeach; ?></select></div>
+                                <div class="mb-2"><label>Condutor</label><select name="condutor" class="form-select" required><option value="">Selecione...</option><?php foreach($tecnicos as $t): ?><option value="<?php echo htmlspecialchars($t['nome']); ?>" <?php echo ($emprestimo_edit && $emprestimo_edit['condutor'] === $t['nome']) ? 'selected' : ''; ?>><?php echo htmlspecialchars($t['nome']); ?></option><?php endforeach; ?></select></div>
                                 <div class="mb-2"><label>KM na Retirada</label><input type="number" name="km_retirada" class="form-control" value="<?php echo $emprestimo_edit && isset($emprestimo_edit['km_retirada']) ? $emprestimo_edit['km_retirada'] : ''; ?>" required></div>
                                 <div class="mb-2"><label>KM na Entrega</label><input type="number" name="km_entrega" class="form-control" value="<?php echo $emprestimo_edit && isset($emprestimo_edit['km_entrega']) ? $emprestimo_edit['km_entrega'] : ''; ?>"></div>
                                 <div class="mb-2"><label>Foto da Retirada</label><input type="file" name="foto_retirada" class="form-control form-control-sm" accept=".jpg,.jpeg,.png,.pdf"><?php if($emprestimo_edit && !empty($emprestimo_edit['foto_retirada'])): ?><div class="mt-1 d-flex justify-content-between align-items-center"><small><a href="<?php echo $emprestimo_edit['foto_retirada']; ?>" target="_blank">Ver foto atual</a></small><label class="small text-danger"><input type="checkbox" name="remover_foto_retirada" value="1"> Remover</label></div><?php endif; ?></div>
@@ -1930,6 +1931,26 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         selectPlaca.addEventListener('change', atualizarKmInicial);
         var tabRotas = document.querySelector('a[href="?tab=utilizacao"]'); if(tabRotas) { tabRotas.addEventListener('shown.bs.tab', atualizarKmInicial); }
+    }
+
+    var tipoSetorEmprestimo = document.getElementById('tipo_setor_emprestimo');
+    var placaDigitadaWrap = document.getElementById('placa_digitada_wrap');
+    var placaDigitada = document.getElementById('placa_digitada_emprestimo');
+    var placaFrotaWrap = document.getElementById('placa_frota_wrap');
+    var placaFrota = document.getElementById('placa_frota_emprestimo');
+    if (tipoSetorEmprestimo && placaDigitadaWrap && placaDigitada && placaFrotaWrap && placaFrota) {
+        function alternarCampoPlacaEmprestimo() {
+            var usarFrota = tipoSetorEmprestimo.value === 'Setor emprestou o carro';
+            placaFrotaWrap.style.display = usarFrota ? '' : 'none';
+            placaDigitadaWrap.style.display = usarFrota ? 'none' : '';
+            placaFrota.disabled = !usarFrota;
+            placaDigitada.disabled = usarFrota;
+            placaFrota.required = usarFrota;
+            placaDigitada.required = !usarFrota;
+        }
+        tipoSetorEmprestimo.addEventListener('change', alternarCampoPlacaEmprestimo);
+        placaDigitada.addEventListener('input', function() { this.value = this.value.toUpperCase(); });
+        alternarCampoPlacaEmprestimo();
     }
     
     var toggleSwitch = document.querySelector('#checkbox_theme');
