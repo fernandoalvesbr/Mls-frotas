@@ -240,19 +240,48 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao'])) {
             $criado_por = $_SESSION['username'];
             $editado_por = '';
             
-            if (!empty($_POST['veiculo_id'])) { foreach ($veiculos as $v) { if ($v['id'] === $id) { $anexosAtuais = isset($v['anexos']) && is_array($v['anexos']) ? $v['anexos'] : array(); $criado_por = isset($v['criado_por']) ? $v['criado_por'] : 'Desconhecido'; $editado_por = $_SESSION['username']; break; } } }
+            $fotosRetiradaAtuais = array();
+            $fotosEntregaAtuais = array();
+            
+            if (!empty($_POST['veiculo_id'])) {
+                foreach ($veiculos as $v) {
+                    if ($v['id'] === $id) {
+                        $anexosAtuais = isset($v['anexos']) && is_array($v['anexos']) ? $v['anexos'] : array();
+                        $fotosRetiradaAtuais = isset($v['fotos_retirada']) && is_array($v['fotos_retirada']) ? $v['fotos_retirada'] : array();
+                        $fotosEntregaAtuais = isset($v['fotos_entrega']) && is_array($v['fotos_entrega']) ? $v['fotos_entrega'] : array();
+                        $criado_por = isset($v['criado_por']) ? $v['criado_por'] : 'Desconhecido';
+                        $editado_por = $_SESSION['username'];
+                        break;
+                    }
+                }
+            }
             if (isset($_POST['remover_anexos_veiculo']) && is_array($_POST['remover_anexos_veiculo'])) {
                 foreach ($_POST['remover_anexos_veiculo'] as $anexoRemover) { if (file_exists($anexoRemover)) { unlink($anexoRemover); } $anexosAtuais = array_diff($anexosAtuais, array($anexoRemover)); }
                 $anexosAtuais = array_values($anexosAtuais); 
             }
+            if (isset($_POST['remover_fotos_retirada']) && is_array($_POST['remover_fotos_retirada'])) {
+                foreach ($_POST['remover_fotos_retirada'] as $fotoRemover) { if (file_exists($fotoRemover)) { unlink($fotoRemover); } $fotosRetiradaAtuais = array_diff($fotosRetiradaAtuais, array($fotoRemover)); }
+                $fotosRetiradaAtuais = array_values($fotosRetiradaAtuais);
+            }
+            if (isset($_POST['remover_fotos_entrega']) && is_array($_POST['remover_fotos_entrega'])) {
+                foreach ($_POST['remover_fotos_entrega'] as $fotoRemover) { if (file_exists($fotoRemover)) { unlink($fotoRemover); } $fotosEntregaAtuais = array_diff($fotosEntregaAtuais, array($fotoRemover)); }
+                $fotosEntregaAtuais = array_values($fotosEntregaAtuais);
+            }
             if (isset($_FILES['anexos_novos']) && !empty($_FILES['anexos_novos']['name'][0])) {
                 $file_ary = reArrayFiles($_FILES['anexos_novos']); foreach ($file_ary as $file) { $novoAnexo = fazerUpload($file); if ($novoAnexo !== '') { $anexosAtuais[] = $novoAnexo; } }
+            }
+            if (isset($_FILES['fotos_retirada_novas']) && !empty($_FILES['fotos_retirada_novas']['name'][0])) {
+                $file_ary = reArrayFiles($_FILES['fotos_retirada_novas']); foreach ($file_ary as $file) { $novaFoto = fazerUpload($file); if ($novaFoto !== '') { $fotosRetiradaAtuais[] = $novaFoto; } }
+            }
+            if (isset($_FILES['fotos_entrega_novas']) && !empty($_FILES['fotos_entrega_novas']['name'][0])) {
+                $file_ary = reArrayFiles($_FILES['fotos_entrega_novas']); foreach ($file_ary as $file) { $novaFoto = fazerUpload($file); if ($novaFoto !== '') { $fotosEntregaAtuais[] = $novaFoto; } }
             }
 
             $novo = array(
                 'id' => $id, 'placa' => strtoupper(trim($_POST['placa'])), 'modelo' => trim($_POST['modelo']), 'tecnico' => trim($_POST['tecnico']),
                 'km_inicial' => $km_inicial, 'km_revisao' => $km_revisao, 'data_revisao' => $data_revisao,
                 'data_ipva' => $_POST['data_ipva'], 'data_seguro' => $_POST['data_seguro'], 'ativo' => $ativo, 'anexos' => $anexosAtuais,
+                'fotos_retirada' => $fotosRetiradaAtuais, 'fotos_entrega' => $fotosEntregaAtuais,
                 'criado_por' => $criado_por, 'editado_por' => $editado_por
             );
             if (!empty($_POST['veiculo_id'])) { foreach ($veiculos as $k => $v) { if ($v['id'] === $id) { $veiculos[$k] = $novo; break; } } $_SESSION['msg'] = "Veículo atualizado!"; } 
@@ -376,7 +405,7 @@ if (isset($_GET['excluir']) && isset($_GET['tipo']) && $isAdmin) {
     } elseif ($tipo === 'cartao') {
         foreach ($cartoes as $k => $v) { if ($v['id'] === $id) { if(!empty($v['anexo']) && file_exists($v['anexo'])) { unlink($v['anexo']); } unset($cartoes[$k]); } } salvarDados($arquivos['cartoes'], $cartoes); $_SESSION['msg'] = "Cartão excluído!"; $tab = 'cartoes';
     } elseif ($tipo === 'veiculo') {
-        foreach ($veiculos as $k => $v) { if ($v['id'] === $id) { if(!empty($v['anexos']) && is_array($v['anexos'])) { foreach($v['anexos'] as $anx) { if(file_exists($anx)) unlink($anx); } } unset($veiculos[$k]); } } salvarDados($arquivos['veiculos'], $veiculos); $_SESSION['msg'] = "Registo excluído!"; $tab = 'veiculos';
+        foreach ($veiculos as $k => $v) { if ($v['id'] === $id) { if(!empty($v['anexos']) && is_array($v['anexos'])) { foreach($v['anexos'] as $anx) { if(file_exists($anx)) unlink($anx); } } if(!empty($v['fotos_retirada']) && is_array($v['fotos_retirada'])) { foreach($v['fotos_retirada'] as $foto) { if(file_exists($foto)) unlink($foto); } } if(!empty($v['fotos_entrega']) && is_array($v['fotos_entrega'])) { foreach($v['fotos_entrega'] as $foto) { if(file_exists($foto)) unlink($foto); } } unset($veiculos[$k]); } } salvarDados($arquivos['veiculos'], $veiculos); $_SESSION['msg'] = "Registo excluído!"; $tab = 'veiculos';
     } elseif ($tipo === 'abastecimento') {
         foreach ($abastecimentos as $k => $v) { if ($v['id'] === $id) { if(!empty($v['anexo']) && file_exists($v['anexo'])) { unlink($v['anexo']); } unset($abastecimentos[$k]); } } salvarDados($arquivos['abastecimentos'], $abastecimentos); $_SESSION['msg'] = "Registo excluído!"; $tab = 'abastecimentos';
     } elseif ($tipo === 'lavagem') {
@@ -731,6 +760,8 @@ foreach ($abastecimentos_filtrados as $abs) {
         body.dark-mode .table-striped > tbody > tr:nth-of-type(odd) > * { background-color: #2a2a2a !important; color: #e0e0e0 !important; }
         body.dark-mode .table-light th { background-color: #2c2c2c !important; color: #fff !important; }
         body.dark-mode .table-dark th { background-color: #111 !important; color: #fff !important; }
+        body.dark-mode .text-muted { color: #adb5bd !important; }
+        body.dark-mode .docs-label { color: #f1f3f5 !important; }
         body.dark-mode .text-danger { color: #ff6b6b !important; }
         
         .theme-switch-wrapper { display: flex; align-items: center; }
@@ -1394,6 +1425,46 @@ foreach ($abastecimentos_filtrados as $abs) {
                                         </div>
                                     <?php endif; ?>
                                 </div>
+                                
+                                <div class="mb-3 p-2 border rounded">
+                                    <label class="fw-bold mb-1 d-block"><i class="bi bi-camera"></i> Fotos de Retirada do Carro</label>
+                                    <input type="file" name="fotos_retirada_novas[]" class="form-control form-control-sm" accept=".jpg,.jpeg,.png,.pdf" multiple>
+                                    <small class="text-muted d-block mt-1" style="font-size: 0.75rem;">Fotos enviadas ao retirar o veículo.</small>
+                                    
+                                    <?php if($veiculo_edit && !empty($veiculo_edit['fotos_retirada']) && is_array($veiculo_edit['fotos_retirada'])): ?>
+                                        <div class="mt-2 pt-2 border-top">
+                                            <label class="small fw-bold text-danger mb-1 d-block">Marque para apagar:</label>
+                                            <?php foreach($veiculo_edit['fotos_retirada'] as $i => $foto): ?>
+                                                <div class="form-check mb-0">
+                                                    <input class="form-check-input" type="checkbox" name="remover_fotos_retirada[]" value="<?php echo htmlspecialchars($foto); ?>" id="rm_ret_<?php echo $i; ?>">
+                                                    <label class="form-check-label small" for="rm_ret_<?php echo $i; ?>">
+                                                        <a href="<?php echo $foto; ?>" target="_blank" class="text-decoration-none">Retirada <?php echo $i+1; ?></a>
+                                                    </label>
+                                                </div>
+                                            <?php endforeach; ?>
+                                        </div>
+                                    <?php endif; ?>
+                                </div>
+                                
+                                <div class="mb-3 p-2 border rounded">
+                                    <label class="fw-bold mb-1 d-block"><i class="bi bi-camera-fill"></i> Fotos de Entrega do Carro</label>
+                                    <input type="file" name="fotos_entrega_novas[]" class="form-control form-control-sm" accept=".jpg,.jpeg,.png,.pdf" multiple>
+                                    <small class="text-muted d-block mt-1" style="font-size: 0.75rem;">Fotos enviadas ao devolver o veículo.</small>
+                                    
+                                    <?php if($veiculo_edit && !empty($veiculo_edit['fotos_entrega']) && is_array($veiculo_edit['fotos_entrega'])): ?>
+                                        <div class="mt-2 pt-2 border-top">
+                                            <label class="small fw-bold text-danger mb-1 d-block">Marque para apagar:</label>
+                                            <?php foreach($veiculo_edit['fotos_entrega'] as $i => $foto): ?>
+                                                <div class="form-check mb-0">
+                                                    <input class="form-check-input" type="checkbox" name="remover_fotos_entrega[]" value="<?php echo htmlspecialchars($foto); ?>" id="rm_ent_<?php echo $i; ?>">
+                                                    <label class="form-check-label small" for="rm_ent_<?php echo $i; ?>">
+                                                        <a href="<?php echo $foto; ?>" target="_blank" class="text-decoration-none">Entrega <?php echo $i+1; ?></a>
+                                                    </label>
+                                                </div>
+                                            <?php endforeach; ?>
+                                        </div>
+                                    <?php endif; ?>
+                                </div>
 
                                 <div class="mb-3 form-check"><input type="checkbox" class="form-check-input" id="checkAtivo" name="ativo" value="1" <?php echo (!$veiculo_edit || !isset($veiculo_edit['ativo']) || $veiculo_edit['ativo'] == 1) ? 'checked' : ''; ?>><label class="form-check-label fw-bold" for="checkAtivo">Veículo Ativo na Frota</label></div>
                                 <button type="submit" class="btn btn-primary w-100 mb-2">Salvar</button><?php if($veiculo_edit): ?><a href="?tab=veiculos" class="btn btn-outline-secondary w-100">Cancelar</a><?php endif; ?>
@@ -1429,10 +1500,32 @@ foreach ($abastecimentos_filtrados as $abs) {
                                             <td class="fw-bold"><?php echo htmlspecialchars($v['placa']); ?></td><td><?php echo htmlspecialchars($v['modelo']); ?></td><td><span class="badge bg-secondary"><?php echo isset($v['tecnico']) ? htmlspecialchars($v['tecnico']) : '-'; ?></span></td>
                                             <td><?php echo date('d/m/Y', strtotime($v['data_revisao'])); ?></td>
                                             <td>
-                                                <?php if(!empty($v['anexos']) && is_array($v['anexos'])): ?>
-                                                    <?php foreach($v['anexos'] as $i => $anx): ?>
-                                                        <a href="<?php echo $anx; ?>" target="_blank" class="badge bg-success text-decoration-none mb-1" title="Visualizar Doc <?php echo $i+1; ?>"><i class="bi bi-file-earmark-text"></i> <?php echo $i+1; ?></a>
-                                                    <?php endforeach; ?>
+                                                <?php $temDocsVeiculo = (!empty($v['anexos']) && is_array($v['anexos'])) || (!empty($v['fotos_retirada']) && is_array($v['fotos_retirada'])) || (!empty($v['fotos_entrega']) && is_array($v['fotos_entrega'])); ?>
+                                                <?php if($temDocsVeiculo): ?>
+                                                    <?php if(!empty($v['anexos']) && is_array($v['anexos'])): ?>
+                                                        <div class="mb-1">
+                                                            <small class="fw-bold text-muted docs-label d-block">Documento:</small>
+                                                            <?php foreach($v['anexos'] as $i => $anx): ?>
+                                                                <a href="<?php echo $anx; ?>" target="_blank" class="badge bg-success text-decoration-none mb-1" title="Visualizar Doc <?php echo $i+1; ?>"><i class="bi bi-file-earmark-text"></i> <?php echo $i+1; ?></a>
+                                                            <?php endforeach; ?>
+                                                        </div>
+                                                    <?php endif; ?>
+                                                    <?php if(!empty($v['fotos_retirada']) && is_array($v['fotos_retirada'])): ?>
+                                                        <div class="mb-1">
+                                                            <small class="fw-bold text-muted docs-label d-block">Retirada do carro:</small>
+                                                            <?php foreach($v['fotos_retirada'] as $i => $foto): ?>
+                                                                <a href="<?php echo $foto; ?>" target="_blank" class="badge bg-info text-dark text-decoration-none mb-1" title="Foto Retirada <?php echo $i+1; ?>"><i class="bi bi-box-arrow-up"></i> Foto <?php echo $i+1; ?></a>
+                                                            <?php endforeach; ?>
+                                                        </div>
+                                                    <?php endif; ?>
+                                                    <?php if(!empty($v['fotos_entrega']) && is_array($v['fotos_entrega'])): ?>
+                                                        <div class="mb-1">
+                                                            <small class="fw-bold text-muted docs-label d-block">Entrega do carro:</small>
+                                                            <?php foreach($v['fotos_entrega'] as $i => $foto): ?>
+                                                                <a href="<?php echo $foto; ?>" target="_blank" class="badge bg-warning text-dark text-decoration-none mb-1" title="Foto Entrega <?php echo $i+1; ?>"><i class="bi bi-box-arrow-in-down"></i> Foto <?php echo $i+1; ?></a>
+                                                            <?php endforeach; ?>
+                                                        </div>
+                                                    <?php endif; ?>
                                                 <?php else: ?>
                                                     <span class="badge bg-light text-muted">-</span>
                                                 <?php endif; ?>
