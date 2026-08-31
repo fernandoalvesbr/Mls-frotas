@@ -235,8 +235,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao'])) {
             
             $km_inicial = (int)$_POST['km_inicial'];
             $km_revisao = !empty($_POST['km_revisao']) ? (int)$_POST['km_revisao'] : $km_inicial;
-            $data_registro = !empty($_POST['data_registro']) ? $_POST['data_registro'] : date('Y-m-d');
+            $data_registro = date('Y-m-d');
             $data_revisao = !empty($_POST['data_revisao']) ? $_POST['data_revisao'] : date('Y-m-d');
+            $data_retirada = isset($_POST['data_retirada']) ? $_POST['data_retirada'] : '';
             $ativo = isset($_POST['ativo']) ? 1 : 0;
             
             $anexosAtuais = array();
@@ -252,6 +253,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao'])) {
                         $anexosAtuais = isset($v['anexos']) && is_array($v['anexos']) ? $v['anexos'] : array();
                         $fotosRetiradaAtuais = isset($v['fotos_retirada']) && is_array($v['fotos_retirada']) ? $v['fotos_retirada'] : array();
                         $fotosEntregaAtuais = isset($v['fotos_entrega']) && is_array($v['fotos_entrega']) ? $v['fotos_entrega'] : array();
+                        $data_registro = isset($v['data_registro']) && !empty($v['data_registro']) ? $v['data_registro'] : date('Y-m-d');
                         $criado_por = isset($v['criado_por']) ? $v['criado_por'] : 'Desconhecido';
                         $editado_por = $_SESSION['username'];
                         break;
@@ -283,7 +285,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao'])) {
             $novo = array(
                 'id' => $id, 'placa' => strtoupper(trim($_POST['placa'])), 'modelo' => trim($_POST['modelo']), 'tecnico' => trim($_POST['tecnico']),
                 'km_inicial' => $km_inicial, 'km_revisao' => $km_revisao, 'data_registro' => $data_registro, 'data_revisao' => $data_revisao,
-                'data_ipva' => $_POST['data_ipva'], 'data_seguro' => $_POST['data_seguro'], 'ativo' => $ativo, 'anexos' => $anexosAtuais,
+                'data_retirada' => $data_retirada, 'data_entrega' => $_POST['data_entrega'], 'data_ipva' => $_POST['data_ipva'], 'data_seguro' => $_POST['data_seguro'], 'ativo' => $ativo, 'anexos' => $anexosAtuais,
                 'fotos_retirada' => $fotosRetiradaAtuais, 'fotos_entrega' => $fotosEntregaAtuais, 'motivo_devolucao' => trim($_POST['motivo_devolucao']),
                 'criado_por' => $criado_por, 'editado_por' => $editado_por
             );
@@ -741,8 +743,8 @@ usort($emprestimos_filtrados, $funcaoOrdenacao);
 
 $veiculos_ordenados = $veiculos;
 usort($veiculos_ordenados, function($a, $b) {
-    $dataA = isset($a['data_registro']) && $a['data_registro'] !== '' ? $a['data_registro'] : (isset($a['data_revisao']) ? $a['data_revisao'] : '');
-    $dataB = isset($b['data_registro']) && $b['data_registro'] !== '' ? $b['data_registro'] : (isset($b['data_revisao']) ? $b['data_revisao'] : '');
+    $dataA = isset($a['data_retirada']) && $a['data_retirada'] !== '' ? $a['data_retirada'] : (isset($a['data_registro']) && $a['data_registro'] !== '' ? $a['data_registro'] : (isset($a['data_revisao']) ? $a['data_revisao'] : ''));
+    $dataB = isset($b['data_retirada']) && $b['data_retirada'] !== '' ? $b['data_retirada'] : (isset($b['data_registro']) && $b['data_registro'] !== '' ? $b['data_registro'] : (isset($b['data_revisao']) ? $b['data_revisao'] : ''));
     return strcmp($dataB, $dataA);
 });
 
@@ -1609,8 +1611,9 @@ foreach ($abastecimentos_filtrados as $abs) {
                                     <div class="col-6 mb-2"><label>KM Inicial</label><input type="number" name="km_inicial" class="form-control" value="<?php echo $veiculo_edit && isset($veiculo_edit['km_inicial']) ? $veiculo_edit['km_inicial'] : ''; ?>" required></div>
                                     <div class="col-6 mb-2"><label>KM Revisão</label><input type="number" name="km_revisao" class="form-control" placeholder="Igual ao Inicial" value="<?php echo $veiculo_edit ? $veiculo_edit['km_revisao'] : ''; ?>"></div>
                                 </div>
-                                <div class="mb-2"><label>Data de Registro</label><input type="date" name="data_registro" class="form-control" value="<?php echo $veiculo_edit && isset($veiculo_edit['data_registro']) ? $veiculo_edit['data_registro'] : date('Y-m-d'); ?>"></div>
-                                <div class="mb-2"><label>Data Revisão</label><input type="date" name="data_revisao" class="form-control" value="<?php echo $veiculo_edit ? $veiculo_edit['data_revisao'] : ''; ?>"><small class="text-muted d-block" style="font-size: 0.75rem; margin-top: -3px;">Se em branco, assume hoje.</small></div>
+                                <div class="mb-2"><label>Data da Última Revisão</label><input type="date" name="data_revisao" class="form-control" value="<?php echo $veiculo_edit ? $veiculo_edit['data_revisao'] : ''; ?>"><small class="text-muted d-block" style="font-size: 0.75rem; margin-top: -3px;">Se em branco, assume hoje.</small></div>
+                                <div class="mb-2"><label>Data da Retirada</label><input type="date" name="data_retirada" class="form-control" value="<?php echo $veiculo_edit && isset($veiculo_edit['data_retirada']) ? $veiculo_edit['data_retirada'] : ''; ?>"></div>
+                                <div class="mb-2"><label>Data da Entrega</label><input type="date" name="data_entrega" class="form-control" value="<?php echo $veiculo_edit && isset($veiculo_edit['data_entrega']) ? $veiculo_edit['data_entrega'] : ''; ?>"></div>
                                 <hr>
                                 <div class="mb-2"><label>Vencimento IPVA</label><input type="date" name="data_ipva" class="form-control" value="<?php echo $veiculo_edit && isset($veiculo_edit['data_ipva']) ? $veiculo_edit['data_ipva'] : ''; ?>"></div>
                                 <div class="mb-3"><label>Vencimento Seguro</label><input type="date" name="data_seguro" class="form-control" value="<?php echo $veiculo_edit && isset($veiculo_edit['data_seguro']) ? $veiculo_edit['data_seguro'] : ''; ?>"></div>
@@ -1695,7 +1698,7 @@ foreach ($abastecimentos_filtrados as $abs) {
                         <div class="card-body p-3">
                             <div class="table-responsive">
                                 <table class="table table-striped table-hover align-middle mb-0">
-                                    <thead class="table-dark"><tr><th class="text-center">Status</th><th>Placa</th><th>Modelo</th><th>Técnico</th><th>Data Reg</th><th>Data Rev</th><th>Docs</th><?php if($isAdmin): ?><th>Ações</th><?php endif; ?></tr></thead>
+                                    <thead class="table-dark"><tr><th class="text-center">Status</th><th>Placa</th><th>Modelo</th><th>Técnico</th><th>Última Revisão</th><th>Data Retirada</th><th>Data Entrega</th><th>Docs</th><?php if($isAdmin): ?><th>Ações</th><?php endif; ?></tr></thead>
                                     <tbody>
                                         <?php foreach($veiculos_ordenados as $v): ?>
                                         <tr data-bs-toggle="tooltip" data-bs-placement="top" title="<?php echo getTooltipAuditoria($v); ?>">
@@ -1713,8 +1716,9 @@ foreach ($abastecimentos_filtrados as $abs) {
                                                 <?php endif; ?>
                                             </td>
                                             <td class="fw-bold"><?php echo htmlspecialchars($v['placa']); ?></td><td><?php echo htmlspecialchars($v['modelo']); ?></td><td><span class="badge bg-secondary"><?php echo isset($v['tecnico']) ? htmlspecialchars($v['tecnico']) : '-'; ?></span></td>
-                                            <td><?php echo !empty($v['data_registro']) ? date('d/m/Y', strtotime($v['data_registro'])) : '-'; ?></td>
                                             <td><?php echo date('d/m/Y', strtotime($v['data_revisao'])); ?></td>
+                                            <td><?php echo !empty($v['data_retirada']) ? date('d/m/Y', strtotime($v['data_retirada'])) : '-'; ?></td>
+                                            <td><?php echo !empty($v['data_entrega']) ? date('d/m/Y', strtotime($v['data_entrega'])) : '-'; ?></td>
                                             <td>
                                                 <?php $temDocsVeiculo = (!empty($v['anexos']) && is_array($v['anexos'])) || (!empty($v['fotos_retirada']) && is_array($v['fotos_retirada'])) || (!empty($v['fotos_entrega']) && is_array($v['fotos_entrega'])); ?>
                                                 <?php if($temDocsVeiculo): ?>
