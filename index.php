@@ -506,6 +506,126 @@ if (isset($_GET['toggle_ativo_veiculo']) && $isAdmin) {
     } header('Location: ?tab=veiculos'); exit;
 }
 
+if (isset($_GET['download_veiculo_docs']) && $isAdmin) {
+    if (!class_exists('ZipArchive')) {
+        $_SESSION['msg_erro'] = "A extensão ZipArchive não está ativa no seu servidor PHP.";
+        header('Location: ?tab=veiculos'); exit;
+    }
+
+    $id = $_GET['download_veiculo_docs'];
+    $veiculoDownload = null;
+    foreach ($veiculos as $v) {
+        if ($v['id'] === $id) { $veiculoDownload = $v; break; }
+    }
+
+    if (!$veiculoDownload) {
+        $_SESSION['msg_erro'] = "Veículo não encontrado.";
+        header('Location: ?tab=veiculos'); exit;
+    }
+
+    $gruposArquivos = array(
+        'documentos' => isset($veiculoDownload['anexos']) && is_array($veiculoDownload['anexos']) ? $veiculoDownload['anexos'] : array(),
+        'retirada_do_carro' => isset($veiculoDownload['fotos_retirada']) && is_array($veiculoDownload['fotos_retirada']) ? $veiculoDownload['fotos_retirada'] : array(),
+        'entrega_do_carro' => isset($veiculoDownload['fotos_entrega']) && is_array($veiculoDownload['fotos_entrega']) ? $veiculoDownload['fotos_entrega'] : array()
+    );
+
+    $arquivosEncontrados = 0;
+    foreach ($gruposArquivos as $arquivosGrupo) {
+        foreach ($arquivosGrupo as $arquivo) {
+            if (!empty($arquivo) && file_exists($arquivo)) { $arquivosEncontrados++; }
+        }
+    }
+
+    if ($arquivosEncontrados === 0) {
+        $_SESSION['msg_erro'] = "Este veículo não possui arquivos para baixar.";
+        header('Location: ?tab=veiculos'); exit;
+    }
+
+    $placaZip = preg_replace('/[^A-Za-z0-9_-]/', '_', isset($veiculoDownload['placa']) ? $veiculoDownload['placa'] : 'veiculo');
+    $filename = "documentos_veiculo_" . $placaZip . "_" . date('Ymd_His') . ".zip";
+    $zip = new ZipArchive();
+
+    if ($zip->open($filename, ZipArchive::CREATE) === TRUE) {
+        foreach ($gruposArquivos as $pasta => $arquivosGrupo) {
+            foreach ($arquivosGrupo as $i => $arquivo) {
+                if (empty($arquivo) || !file_exists($arquivo)) { continue; }
+                $ext = pathinfo($arquivo, PATHINFO_EXTENSION);
+                $nomeInterno = $pasta . '/' . ($i + 1) . (!empty($ext) ? '.' . $ext : '');
+                $zip->addFile($arquivo, $nomeInterno);
+            }
+        }
+        $zip->close();
+        header('Content-Type: application/zip');
+        header('Content-Disposition: attachment; filename="' . $filename . '"');
+        header('Content-Length: ' . filesize($filename));
+        readfile($filename);
+        unlink($filename);
+        exit;
+    }
+
+    $_SESSION['msg_erro'] = "Erro ao criar o ZIP de documentos do veículo.";
+    header('Location: ?tab=veiculos'); exit;
+}
+
+if (isset($_GET['download_emprestimo_fotos']) && $isAdmin) {
+    if (!class_exists('ZipArchive')) {
+        $_SESSION['msg_erro'] = "A extensão ZipArchive não está ativa no seu servidor PHP.";
+        header('Location: ?tab=emprestimos'); exit;
+    }
+
+    $id = $_GET['download_emprestimo_fotos'];
+    $emprestimoDownload = null;
+    foreach ($emprestimos as $e) {
+        if ($e['id'] === $id) { $emprestimoDownload = $e; break; }
+    }
+
+    if (!$emprestimoDownload) {
+        $_SESSION['msg_erro'] = "Empréstimo não encontrado.";
+        header('Location: ?tab=emprestimos'); exit;
+    }
+
+    $fotosRetirada = isset($emprestimoDownload['fotos_retirada']) && is_array($emprestimoDownload['fotos_retirada']) ? $emprestimoDownload['fotos_retirada'] : (!empty($emprestimoDownload['foto_retirada']) ? array($emprestimoDownload['foto_retirada']) : array());
+    $fotosEntrega = isset($emprestimoDownload['fotos_entrega']) && is_array($emprestimoDownload['fotos_entrega']) ? $emprestimoDownload['fotos_entrega'] : (!empty($emprestimoDownload['foto_entrega']) ? array($emprestimoDownload['foto_entrega']) : array());
+    $gruposArquivos = array('retirada' => $fotosRetirada, 'devolucao' => $fotosEntrega);
+
+    $arquivosEncontrados = 0;
+    foreach ($gruposArquivos as $arquivosGrupo) {
+        foreach ($arquivosGrupo as $arquivo) {
+            if (!empty($arquivo) && file_exists($arquivo)) { $arquivosEncontrados++; }
+        }
+    }
+
+    if ($arquivosEncontrados === 0) {
+        $_SESSION['msg_erro'] = "Este empréstimo não possui fotos para baixar.";
+        header('Location: ?tab=emprestimos'); exit;
+    }
+
+    $placaZip = preg_replace('/[^A-Za-z0-9_-]/', '_', isset($emprestimoDownload['placa']) ? $emprestimoDownload['placa'] : 'emprestimo');
+    $filename = "fotos_emprestimo_" . $placaZip . "_" . date('Ymd_His') . ".zip";
+    $zip = new ZipArchive();
+
+    if ($zip->open($filename, ZipArchive::CREATE) === TRUE) {
+        foreach ($gruposArquivos as $pasta => $arquivosGrupo) {
+            foreach ($arquivosGrupo as $i => $arquivo) {
+                if (empty($arquivo) || !file_exists($arquivo)) { continue; }
+                $ext = pathinfo($arquivo, PATHINFO_EXTENSION);
+                $nomeInterno = $pasta . '/' . ($i + 1) . (!empty($ext) ? '.' . $ext : '');
+                $zip->addFile($arquivo, $nomeInterno);
+            }
+        }
+        $zip->close();
+        header('Content-Type: application/zip');
+        header('Content-Disposition: attachment; filename="' . $filename . '"');
+        header('Content-Length: ' . filesize($filename));
+        readfile($filename);
+        unlink($filename);
+        exit;
+    }
+
+    $_SESSION['msg_erro'] = "Erro ao criar o ZIP de fotos do empréstimo.";
+    header('Location: ?tab=emprestimos'); exit;
+}
+
 if (isset($_GET['backup_db']) && $isAdmin) {
     if (class_exists('ZipArchive')) {
         $zip = new ZipArchive();
@@ -1621,7 +1741,7 @@ foreach ($abastecimentos_filtrados as $abs) {
                                                     <span class="badge bg-light text-muted">-</span>
                                                 <?php endif; ?>
                                             </td>
-                                            <?php if($isAdmin): ?><td><a href="?tab=veiculos&edit_veiculo=<?php echo $v['id']; ?>" class="btn btn-primary btn-sm"><i class="bi bi-pencil"></i></a> <button type="button" class="btn btn-danger btn-sm" onclick="confirmDelete('?excluir=<?php echo $v['id']; ?>&tipo=veiculo')"><i class="bi bi-trash"></i></button></td><?php endif; ?>
+                                            <?php if($isAdmin): ?><td><a href="?download_veiculo_docs=<?php echo $v['id']; ?>" class="btn btn-success btn-sm" title="Baixar documentos e fotos em ZIP"><i class="bi bi-download"></i></a> <a href="?tab=veiculos&edit_veiculo=<?php echo $v['id']; ?>" class="btn btn-primary btn-sm"><i class="bi bi-pencil"></i></a> <button type="button" class="btn btn-danger btn-sm" onclick="confirmDelete('?excluir=<?php echo $v['id']; ?>&tipo=veiculo')"><i class="bi bi-trash"></i></button></td><?php endif; ?>
                                         </tr>
                                         <?php endforeach; ?>
                                     </tbody>
@@ -1915,7 +2035,7 @@ foreach ($abastecimentos_filtrados as $abs) {
                                                 <?php if(!empty($fotos_ret)): ?><?php foreach($fotos_ret as $i => $foto): ?><a href="<?php echo $foto; ?>" target="_blank" class="badge bg-success text-decoration-none mb-1 gallery-photo" data-gallery="emprestimo-<?php echo htmlspecialchars($emp['id']); ?>-retirada" data-gallery-title="Retirada do empréstimo"><i class="bi bi-camera"></i> Retirada <?php echo $i+1; ?></a> <?php endforeach; ?><?php else: ?><span class="badge bg-light text-muted mb-1">Retirada -</span><?php endif; ?>
                                                 <?php if(!empty($fotos_ent)): ?><?php foreach($fotos_ent as $i => $foto): ?><a href="<?php echo $foto; ?>" target="_blank" class="badge bg-warning text-dark text-decoration-none mb-1 gallery-photo" data-gallery="emprestimo-<?php echo htmlspecialchars($emp['id']); ?>-devolucao" data-gallery-title="Devolução do empréstimo"><i class="bi bi-camera-fill"></i> Devolução <?php echo $i+1; ?></a> <?php endforeach; ?><?php else: ?><span class="badge bg-light text-muted mb-1">Devolução -</span><?php endif; ?>
                                             </td>
-                                            <?php if($isAdmin): ?><td><a href="?tab=emprestimos&edit_emprestimo=<?php echo $emp['id']; ?>" class="btn btn-primary btn-sm"><i class="bi bi-pencil"></i></a> <button type="button" class="btn btn-danger btn-sm" onclick="confirmDelete('?excluir=<?php echo $emp['id']; ?>&tipo=emprestimo')"><i class="bi bi-trash"></i></button></td><?php endif; ?>
+                                            <?php if($isAdmin): ?><td><a href="?download_emprestimo_fotos=<?php echo $emp['id']; ?>" class="btn btn-success btn-sm" title="Baixar fotos em ZIP"><i class="bi bi-download"></i></a> <a href="?tab=emprestimos&edit_emprestimo=<?php echo $emp['id']; ?>" class="btn btn-primary btn-sm"><i class="bi bi-pencil"></i></a> <button type="button" class="btn btn-danger btn-sm" onclick="confirmDelete('?excluir=<?php echo $emp['id']; ?>&tipo=emprestimo')"><i class="bi bi-trash"></i></button></td><?php endif; ?>
                                         </tr>
                                         <?php endforeach; ?>
                                     </tbody>
