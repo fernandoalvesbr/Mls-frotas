@@ -374,7 +374,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao'])) {
 
             $novo = array(
                 'id' => $id, 'data' => $_POST['data'], 'condutor' => trim($_POST['condutor']), 'placa' => $_POST['placa'],
-                'setor' => trim($_POST['setor']), 'tipo_setor' => $_POST['tipo_setor'], 'km_retirada' => (int)$_POST['km_retirada'], 'km_entrega' => (int)$_POST['km_entrega'],
+                'setor' => trim($_POST['setor']), 'tipo_setor' => $_POST['tipo_setor'], 'rota' => trim($_POST['rota']), 'km_retirada' => (int)$_POST['km_retirada'], 'km_entrega' => (int)$_POST['km_entrega'],
                 'hora_retirada' => $_POST['hora_retirada'], 'hora_entrega' => $_POST['hora_entrega'], 'fotos_retirada' => $fotosRetiradaAtuais, 'fotos_entrega' => $fotosEntregaAtuais,
                 'criado_por' => $criado_por, 'editado_por' => $editado_por
             );
@@ -629,11 +629,21 @@ if (isset($_GET['download_emprestimo_fotos']) && $isAdmin) {
 if (isset($_GET['backup_db']) && $isAdmin) {
     if (class_exists('ZipArchive')) {
         $zip = new ZipArchive();
-        $filename = "backup_mls_frotas_" . date('Ymd_His') . ".zip";
+        $incluirUploads = isset($_GET['include_uploads']) && $_GET['include_uploads'] == '1';
+        $filename = ($incluirUploads ? "backup_completo_mls_frotas_" : "backup_mls_frotas_") . date('Ymd_His') . ".zip";
         if ($zip->open($filename, ZipArchive::CREATE) === TRUE) {
             foreach ($arquivos as $key => $file) {
                 if (file_exists($file)) {
                     $zip->addFile($file, $file);
+                }
+            }
+            if ($incluirUploads && is_dir('uploads')) {
+                $files = new RecursiveIteratorIterator(new RecursiveDirectoryIterator('uploads', RecursiveDirectoryIterator::SKIP_DOTS), RecursiveIteratorIterator::LEAVES_ONLY);
+                foreach ($files as $file) {
+                    if ($file->isFile()) {
+                        $path = $file->getPathname();
+                        $zip->addFile($path, $path);
+                    }
                 }
             }
             $zip->close();
@@ -760,12 +770,12 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv' && in_array($tab_ativa, 
             fputcsv($output, array(date('d/m/Y', strtotime($linha['data'])), $linha['condutor'], $linha['rota'], $linha['placa'], $linha['km_inicial'], $linha['km_final'], ($linha['km_final'] - $linha['km_inicial'])), ';');
         }
     } elseif ($tab_ativa === 'emprestimos') {
-        fputcsv($output, array('Data', 'Hora Retirada', 'Hora Devolucao', 'Condutor', 'Placa', 'Setor', 'Tipo Setor', 'KM Retirada', 'KM Entrega', 'Total KM'), ';');
+        fputcsv($output, array('Data', 'Hora Retirada', 'Hora Devolucao', 'Condutor', 'Placa', 'Setor', 'Tipo Setor', 'Rota', 'KM Retirada', 'KM Entrega', 'Total KM'), ';');
         foreach ($emprestimos_filtrados as $linha) {
             $km_total = ((int)$linha['km_entrega'] > (int)$linha['km_retirada']) ? ((int)$linha['km_entrega'] - (int)$linha['km_retirada']) : 0;
             $hora_retirada_csv = isset($linha['hora_retirada']) ? $linha['hora_retirada'] : (isset($linha['hora']) ? $linha['hora'] : '');
             $hora_entrega_csv = isset($linha['hora_entrega']) ? $linha['hora_entrega'] : '';
-            fputcsv($output, array(date('d/m/Y', strtotime($linha['data'])), $hora_retirada_csv, $hora_entrega_csv, $linha['condutor'], $linha['placa'], $linha['setor'], isset($linha['tipo_setor']) ? $linha['tipo_setor'] : '', $linha['km_retirada'], $linha['km_entrega'], $km_total), ';');
+            fputcsv($output, array(date('d/m/Y', strtotime($linha['data'])), $hora_retirada_csv, $hora_entrega_csv, $linha['condutor'], $linha['placa'], $linha['setor'], isset($linha['tipo_setor']) ? $linha['tipo_setor'] : '', isset($linha['rota']) ? $linha['rota'] : '', $linha['km_retirada'], $linha['km_entrega'], $km_total), ';');
         }
     } fclose($output); exit;
 }
@@ -1741,7 +1751,7 @@ foreach ($abastecimentos_filtrados as $abs) {
                                                     <span class="badge bg-light text-muted">-</span>
                                                 <?php endif; ?>
                                             </td>
-                                            <?php if($isAdmin): ?><td><a href="?download_veiculo_docs=<?php echo $v['id']; ?>" class="btn btn-success btn-sm" title="Baixar documentos e fotos em ZIP"><i class="bi bi-download"></i></a> <a href="?tab=veiculos&edit_veiculo=<?php echo $v['id']; ?>" class="btn btn-primary btn-sm"><i class="bi bi-pencil"></i></a> <button type="button" class="btn btn-danger btn-sm" onclick="confirmDelete('?excluir=<?php echo $v['id']; ?>&tipo=veiculo')"><i class="bi bi-trash"></i></button></td><?php endif; ?>
+                                            <?php if($isAdmin): ?><td><div class="d-inline-flex flex-column gap-1"><a href="?tab=veiculos&edit_veiculo=<?php echo $v['id']; ?>" class="btn btn-primary btn-sm"><i class="bi bi-pencil"></i></a> <button type="button" class="btn btn-danger btn-sm" onclick="confirmDelete('?excluir=<?php echo $v['id']; ?>&tipo=veiculo')"><i class="bi bi-trash"></i></button> <a href="?download_veiculo_docs=<?php echo $v['id']; ?>" class="btn btn-success btn-sm" title="Baixar documentos e fotos em ZIP"><i class="bi bi-download"></i></a></div></td><?php endif; ?>
                                         </tr>
                                         <?php endforeach; ?>
                                     </tbody>
@@ -1833,8 +1843,8 @@ foreach ($abastecimentos_filtrados as $abs) {
                     <div class="card shadow-sm h-100">
                         <div class="card-header bg-dark text-white fw-bold"><i class="bi bi-database-down"></i> Backup do Sistema (Base de Dados)</div>
                         <div class="card-body text-center d-flex flex-column justify-content-center">
-                            <p class="text-muted mb-4">Descarregue uma cópia de segurança completa de toda a sua base de dados (todos os ficheiros JSON com os registos do sistema).</p>
-                            <a href="?backup_db=1" class="btn btn-dark w-100 fs-5 mt-auto"><i class="bi bi-download"></i> Baixar Backup (.ZIP)</a>
+                            <p class="text-muted mb-4">Descarregue uma cópia de segurança dos registos do sistema, com opção de incluir fotos e documentos.</p>
+                            <button type="button" class="btn btn-dark w-100 fs-5 mt-auto" data-bs-toggle="modal" data-bs-target="#backupModal"><i class="bi bi-download"></i> Baixar Backup (.ZIP)</button>
                         </div>
                     </div>
                 </div>
@@ -1963,6 +1973,7 @@ foreach ($abastecimentos_filtrados as $abs) {
                                 <div class="mb-2"><label>Hora da Retirada</label><input type="time" name="hora_retirada" class="form-control" required value="<?php echo $emprestimo_edit && isset($emprestimo_edit['hora_retirada']) ? $emprestimo_edit['hora_retirada'] : ($emprestimo_edit && isset($emprestimo_edit['hora']) ? $emprestimo_edit['hora'] : date('H:i')); ?>"></div>
                                 <div class="mb-2"><label>Hora da Devolução</label><input type="time" name="hora_entrega" class="form-control" value="<?php echo $emprestimo_edit && isset($emprestimo_edit['hora_entrega']) ? $emprestimo_edit['hora_entrega'] : ''; ?>"></div>
                                 <div class="mb-2"><label>Setor</label><input type="text" name="setor" class="form-control" value="<?php echo $emprestimo_edit && isset($emprestimo_edit['setor']) ? htmlspecialchars($emprestimo_edit['setor']) : ''; ?>" required></div>
+                                <div class="mb-2"><label>Rota</label><input type="text" name="rota" class="form-control" value="<?php echo $emprestimo_edit && isset($emprestimo_edit['rota']) ? htmlspecialchars($emprestimo_edit['rota']) : ''; ?>"></div>
                                 <div class="mb-2"><label>Tipo de Setor</label><select name="tipo_setor" id="tipo_setor_emprestimo" class="form-select" required><option value="Setor pegou carro emprestado" <?php echo (!$emprestimo_edit || !isset($emprestimo_edit['tipo_setor']) || $emprestimo_edit['tipo_setor'] === 'Setor pegou carro emprestado') ? 'selected' : ''; ?>>Setor pegou carro emprestado</option><option value="Setor emprestou o carro" <?php echo ($emprestimo_edit && isset($emprestimo_edit['tipo_setor']) && $emprestimo_edit['tipo_setor'] === 'Setor emprestou o carro') ? 'selected' : ''; ?>>Setor emprestou o carro</option></select></div>
                                 <div class="mb-2" id="placa_digitada_wrap"><label>Placa</label><input type="text" name="placa" id="placa_digitada_emprestimo" class="form-control text-uppercase" value="<?php echo $emprestimo_edit && isset($emprestimo_edit['placa']) ? htmlspecialchars($emprestimo_edit['placa']) : ''; ?>" required></div>
                                 <div class="mb-2" id="placa_frota_wrap"><label>Veículo</label><select name="placa" id="placa_frota_emprestimo" class="form-select" required><option value="">Selecione...</option><?php foreach($veiculos as $v): if((isset($v['ativo']) && $v['ativo'] == 0) && (!$emprestimo_edit || $emprestimo_edit['placa'] !== $v['placa'])) continue; ?><option value="<?php echo htmlspecialchars($v['placa']); ?>" <?php echo ($emprestimo_edit && $emprestimo_edit['placa'] === $v['placa']) ? 'selected' : ''; ?>><?php echo htmlspecialchars($v['placa']); ?></option><?php endforeach; ?></select></div>
@@ -2018,7 +2029,7 @@ foreach ($abastecimentos_filtrados as $abs) {
                                             <th>Hora Ret.</th><th>Hora Dev.</th>
                                             <th><a href="<?php echo urlOrdenacao('condutor', $sort_col, $sort_dir, 'emprestimos'); ?>" class="text-white text-decoration-none">Condutor <?php echo $sort_col == 'condutor' ? ($sort_dir == 'asc' ? '↑' : '↓') : ''; ?></a></th>
                                             <th><a href="<?php echo urlOrdenacao('placa', $sort_col, $sort_dir, 'emprestimos'); ?>" class="text-white text-decoration-none">Placa <?php echo $sort_col == 'placa' ? ($sort_dir == 'asc' ? '↑' : '↓') : ''; ?></a></th>
-                                            <th>Setor</th><th>Tipo</th><th>KM Ret.</th><th>KM Ent.</th><th>Total</th><th>Fotos</th>
+                                            <th>Setor</th><th>Tipo</th><th>Rota</th><th>KM Ret.</th><th>KM Ent.</th><th>Total</th><th>Fotos</th>
                                             <?php if($isAdmin): ?><th>Ação</th><?php endif; ?>
                                         </tr>
                                     </thead>
@@ -2028,14 +2039,14 @@ foreach ($abastecimentos_filtrados as $abs) {
                                         <tr data-bs-toggle="tooltip" data-bs-placement="top" title="<?php echo getTooltipAuditoria($emp); ?>">
                                             <?php $hora_ret_emp = isset($emp['hora_retirada']) ? $emp['hora_retirada'] : (isset($emp['hora']) ? $emp['hora'] : ''); $hora_ent_emp = isset($emp['hora_entrega']) ? $emp['hora_entrega'] : ''; ?>
                                             <td><?php echo date('d/m/Y', strtotime($emp['data'])); ?></td><td><?php echo $hora_ret_emp !== '' ? htmlspecialchars($hora_ret_emp) : '-'; ?></td><td><?php echo $hora_ent_emp !== '' ? htmlspecialchars($hora_ent_emp) : '-'; ?></td><td><?php echo htmlspecialchars($emp['condutor']); ?></td><td><span class="badge bg-secondary"><?php echo htmlspecialchars($emp['placa']); ?></span></td>
-                                            <td><?php echo isset($emp['setor']) ? htmlspecialchars($emp['setor']) : '-'; ?></td><td><?php echo isset($emp['tipo_setor']) ? htmlspecialchars($emp['tipo_setor']) : '-'; ?></td><td><?php echo isset($emp['km_retirada']) ? $emp['km_retirada'] : '-'; ?></td><td><?php echo !empty($emp['km_entrega']) ? $emp['km_entrega'] : '-'; ?></td><td><span class="badge bg-info text-dark"><?php echo $km_emp_total; ?> km</span></td>
+                                            <td><?php echo isset($emp['setor']) ? htmlspecialchars($emp['setor']) : '-'; ?></td><td><?php echo isset($emp['tipo_setor']) ? htmlspecialchars($emp['tipo_setor']) : '-'; ?></td><td><?php echo !empty($emp['rota']) ? htmlspecialchars($emp['rota']) : '-'; ?></td><td><?php echo isset($emp['km_retirada']) ? $emp['km_retirada'] : '-'; ?></td><td><?php echo !empty($emp['km_entrega']) ? $emp['km_entrega'] : '-'; ?></td><td><span class="badge bg-info text-dark"><?php echo $km_emp_total; ?> km</span></td>
                                             <td>
                                                 <?php $fotos_ret = isset($emp['fotos_retirada']) && is_array($emp['fotos_retirada']) ? $emp['fotos_retirada'] : (!empty($emp['foto_retirada']) ? array($emp['foto_retirada']) : array()); ?>
                                                 <?php $fotos_ent = isset($emp['fotos_entrega']) && is_array($emp['fotos_entrega']) ? $emp['fotos_entrega'] : (!empty($emp['foto_entrega']) ? array($emp['foto_entrega']) : array()); ?>
                                                 <?php if(!empty($fotos_ret)): ?><?php foreach($fotos_ret as $i => $foto): ?><a href="<?php echo $foto; ?>" target="_blank" class="badge bg-success text-decoration-none mb-1 gallery-photo" data-gallery="emprestimo-<?php echo htmlspecialchars($emp['id']); ?>-retirada" data-gallery-title="Retirada do empréstimo"><i class="bi bi-camera"></i> Retirada <?php echo $i+1; ?></a> <?php endforeach; ?><?php else: ?><span class="badge bg-light text-muted mb-1">Retirada -</span><?php endif; ?>
                                                 <?php if(!empty($fotos_ent)): ?><?php foreach($fotos_ent as $i => $foto): ?><a href="<?php echo $foto; ?>" target="_blank" class="badge bg-warning text-dark text-decoration-none mb-1 gallery-photo" data-gallery="emprestimo-<?php echo htmlspecialchars($emp['id']); ?>-devolucao" data-gallery-title="Devolução do empréstimo"><i class="bi bi-camera-fill"></i> Devolução <?php echo $i+1; ?></a> <?php endforeach; ?><?php else: ?><span class="badge bg-light text-muted mb-1">Devolução -</span><?php endif; ?>
                                             </td>
-                                            <?php if($isAdmin): ?><td><a href="?download_emprestimo_fotos=<?php echo $emp['id']; ?>" class="btn btn-success btn-sm" title="Baixar fotos em ZIP"><i class="bi bi-download"></i></a> <a href="?tab=emprestimos&edit_emprestimo=<?php echo $emp['id']; ?>" class="btn btn-primary btn-sm"><i class="bi bi-pencil"></i></a> <button type="button" class="btn btn-danger btn-sm" onclick="confirmDelete('?excluir=<?php echo $emp['id']; ?>&tipo=emprestimo')"><i class="bi bi-trash"></i></button></td><?php endif; ?>
+                                            <?php if($isAdmin): ?><td><div class="d-inline-flex flex-column gap-1"><a href="?tab=emprestimos&edit_emprestimo=<?php echo $emp['id']; ?>" class="btn btn-primary btn-sm"><i class="bi bi-pencil"></i></a> <button type="button" class="btn btn-danger btn-sm" onclick="confirmDelete('?excluir=<?php echo $emp['id']; ?>&tipo=emprestimo')"><i class="bi bi-trash"></i></button> <a href="?download_emprestimo_fotos=<?php echo $emp['id']; ?>" class="btn btn-success btn-sm" title="Baixar fotos em ZIP"><i class="bi bi-download"></i></a></div></td><?php endif; ?>
                                         </tr>
                                         <?php endforeach; ?>
                                     </tbody>
@@ -2083,6 +2094,25 @@ foreach ($abastecimentos_filtrados as $abs) {
 
 <div class="modal fade" id="deleteModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-sm modal-dialog-centered"><div class="modal-content"><div class="modal-header bg-danger text-white"><h5 class="modal-title"><i class="bi bi-exclamation-triangle"></i> Atenção</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div><div class="modal-body text-center mt-2"><b>Deseja excluir este registo?</b><br><small class="text-muted">Ação irreversível.</small></div><div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button><a href="#" id="confirmDeleteBtn" class="btn btn-danger">Sim, Excluir</a></div></div></div>
+</div>
+
+<div class="modal fade" id="backupModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header bg-dark text-white">
+        <h5 class="modal-title"><i class="bi bi-database-down"></i> Baixar Backup</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p class="mb-0">Escolha o tipo de backup que deseja baixar.</p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <a href="?backup_db=1" class="btn btn-outline-dark"><i class="bi bi-database"></i> Só Base de Dados</a>
+        <a href="?backup_db=1&include_uploads=1" class="btn btn-dark"><i class="bi bi-file-earmark-zip"></i> Base + Fotos e Documentos</a>
+      </div>
+    </div>
+  </div>
 </div>
 
 <div class="modal fade" id="galleryModal" tabindex="-1" aria-hidden="true">
