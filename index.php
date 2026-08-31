@@ -1272,28 +1272,31 @@ foreach ($abastecimentos_filtrados as $abs) {
                         <div class="card-body p-3">
                             <div class="table-responsive">
                                 <table class="table table-hover align-middle mb-0">
-                                    <thead class="table-light"><tr><th>Placa</th><th>Modelo</th><th>Técnico</th><th>Última Rev.</th><th>KM Atual</th><th>Diferença</th><th>Status Próxima Vistoria</th></tr></thead>
+                                    <thead class="table-light"><tr><th>Placa</th><th>Modelo</th><th>Técnico</th><th>Última Rev.</th><th>Próxima Rev.</th><th>KM Atual</th><th>Faltam</th><th>Status Próxima Vistoria</th></tr></thead>
                                     <tbody>
                                         <?php foreach ($veiculos as $v): 
                                             if (isset($v['ativo']) && $v['ativo'] == 0) continue; 
                                             
-                                            $km_atual = isset($km_atual_veiculos[strtoupper(trim($v['placa']))]) ? $km_atual_veiculos[strtoupper(trim($v['placa']))] : $v['km_revisao'];
-                                            $diferenca = $km_atual - $v['km_revisao'];
                                             $limite_revisao = 10000;
-                                            $percentagem = ($diferenca / $limite_revisao) * 100;
+                                            $km_atual = isset($km_atual_veiculos[strtoupper(trim($v['placa']))]) ? $km_atual_veiculos[strtoupper(trim($v['placa']))] : (isset($v['km_inicial']) ? $v['km_inicial'] : 0);
+                                            $proxima_revisao = max($limite_revisao, ceil($km_atual / $limite_revisao) * $limite_revisao);
+                                            $falta = $proxima_revisao - $km_atual;
+                                            $km_desde_ciclo = $limite_revisao - $falta;
+                                            $percentagem = ($km_desde_ciclo / $limite_revisao) * 100;
                                             if ($percentagem < 0) $percentagem = 0; if ($percentagem > 100) $percentagem = 100;
                                             
-                                            $falta = $limite_revisao - $diferenca; $status_class = "bg-success"; $status_text = "OK"; $barra_class = "bg-success";
-                                            if ($falta < 0) { $status_class = "bg-danger"; $status_text = "Atrasada!"; $barra_class = "bg-danger"; } 
+                                            $status_class = "bg-success"; $status_text = "OK"; $barra_class = "bg-success";
+                                            if ($falta == 0) { $status_class = "bg-danger"; $status_text = "No limite"; $barra_class = "bg-danger"; }
                                             elseif ($falta <= 1000) { $status_class = "bg-warning text-dark"; $status_text = "Atenção ($falta km)"; $barra_class = "bg-warning"; }
                                         ?>
                                         <tr data-bs-toggle="tooltip" data-bs-placement="top" title="<?php echo getTooltipAuditoria($v); ?>">
                                             <td class="fw-bold"><?php echo htmlspecialchars($v['placa']); ?></td>
                                             <td><?php echo htmlspecialchars($v['modelo']); ?></td>
                                             <td><?php echo isset($v['tecnico']) ? htmlspecialchars($v['tecnico']) : '-'; ?></td>
-                                            <td><?php echo number_format($v['km_revisao'], 0, '', '.'); ?></td>
+                                            <td><?php echo isset($v['km_revisao']) ? number_format($v['km_revisao'], 0, '', '.') : '-'; ?></td>
+                                            <td><?php echo number_format($proxima_revisao, 0, '', '.'); ?></td>
                                             <td><?php echo number_format($km_atual, 0, '', '.'); ?></td>
-                                            <td><?php echo number_format($diferenca, 0, '', '.'); ?> km</td>
+                                            <td><?php echo number_format($falta, 0, '', '.'); ?> km</td>
                                             <td style="min-width: 150px;">
                                                 <div class="d-flex justify-content-between align-items-center mb-1"><span class="badge <?php echo $status_class; ?>"><?php echo $status_text; ?></span><small class="text-muted"><?php echo round($percentagem); ?>%</small></div>
                                                 <div class="progress" style="height: 6px;"><div class="progress-bar <?php echo $barra_class; ?>" role="progressbar" style="width: <?php echo $percentagem; ?>%;"></div></div>
