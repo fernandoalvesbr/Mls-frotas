@@ -187,6 +187,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao'])) {
                 salvarDados($arquivos['usuarios'], $usuarios); $_SESSION['msg'] = "Utilizador criado!";
             } $tab = 'usuarios';
         }
+        elseif ($acao === 'redefinir_senha_usuario') {
+            $tab = 'usuarios';
+            if ($_SESSION['username'] !== 'admin') {
+                $_SESSION['msg_erro'] = "Apenas o admin principal pode redefinir senhas.";
+            } elseif ($_POST['nova_senha'] !== $_POST['confirma_senha']) {
+                $_SESSION['msg_erro'] = "As senhas não coincidem!";
+            } elseif (trim($_POST['nova_senha']) === '') {
+                $_SESSION['msg_erro'] = "Informe uma nova senha.";
+            } else {
+                $senhaAtualizada = false;
+                foreach ($usuarios as $k => $u) {
+                    if ($u['id'] === $_POST['usuario_id']) {
+                        $usuarios[$k]['password'] = password_hash($_POST['nova_senha'], PASSWORD_DEFAULT);
+                        $senhaAtualizada = true;
+                        break;
+                    }
+                }
+                if ($senhaAtualizada) { salvarDados($arquivos['usuarios'], $usuarios); $_SESSION['msg'] = "Senha do utilizador atualizada!"; }
+                else { $_SESSION['msg_erro'] = "Utilizador não encontrado."; }
+            }
+        }
         elseif ($acao === 'salvar_tecnico') {
             $id = !empty($_POST['tecnico_id']) ? $_POST['tecnico_id'] : uniqid();
             
@@ -2077,7 +2098,7 @@ foreach ($abastecimentos_filtrados as $abs) {
                 </div>
                 <div class="col-md-8">
                     <div class="card"><div class="card-header bg-light"><b>Utilizadores do Sistema</b></div>
-                        <div class="card-body p-3"><div class="table-responsive"><table class="table table-striped table-hover align-middle mb-0"><thead class="table-dark"><tr><th>Utilizador</th><th>Permissão</th><th>Ação</th></tr></thead><tbody><?php foreach($usuarios as $u): ?><tr><td class="fw-bold"><?php echo htmlspecialchars($u['username']); ?></td><td><?php if($u['role'] == 'admin'): ?><span class="badge bg-danger">Admin</span><?php else: ?><span class="badge bg-secondary">Leitura</span><?php endif; ?></td><td><?php if($u['id'] !== $_SESSION['user_id'] && $u['username'] !== 'admin'): ?><button type="button" class="btn btn-outline-danger btn-sm" onclick="confirmDelete('?excluir=<?php echo $u['id']; ?>&tipo=usuario')">Excluir</button><?php elseif($u['username'] === 'admin'): ?><span class="text-muted small text-danger"><i class="bi bi-shield-lock-fill"></i> Protegido</span><?php else: ?><span class="text-muted small">Você</span><?php endif; ?></td></tr><?php endforeach; ?></tbody></table></div></div>
+                        <div class="card-body p-3"><div class="table-responsive"><table class="table table-striped table-hover align-middle mb-0"><thead class="table-dark"><tr><th>Utilizador</th><th>Permissão</th><th>Ação</th></tr></thead><tbody><?php foreach($usuarios as $u): ?><tr><td class="fw-bold"><?php echo htmlspecialchars($u['username']); ?></td><td><?php if($u['role'] == 'admin'): ?><span class="badge bg-danger">Admin</span><?php else: ?><span class="badge bg-secondary">Leitura</span><?php endif; ?></td><td><?php if($_SESSION['username'] === 'admin'): ?><button type="button" class="btn btn-outline-primary btn-sm me-1 btn-reset-password" data-user-id="<?php echo htmlspecialchars($u['id']); ?>" data-username="<?php echo htmlspecialchars($u['username']); ?>"><i class="bi bi-key"></i> Senha</button><?php endif; ?><?php if($u['id'] !== $_SESSION['user_id'] && $u['username'] !== 'admin'): ?><button type="button" class="btn btn-outline-danger btn-sm" onclick="confirmDelete('?excluir=<?php echo $u['id']; ?>&tipo=usuario')">Excluir</button><?php elseif($u['username'] === 'admin'): ?><span class="text-muted small text-danger"><i class="bi bi-shield-lock-fill"></i> Protegido</span><?php else: ?><span class="text-muted small">Você</span><?php endif; ?></td></tr><?php endforeach; ?></tbody></table></div></div>
                     </div>
                 </div>
             </div>
@@ -2118,6 +2139,30 @@ foreach ($abastecimentos_filtrados as $abs) {
         <a href="?backup_db=1" class="btn btn-outline-dark"><i class="bi bi-database"></i> Só Base de Dados</a>
         <a href="?backup_db=1&include_uploads=1" class="btn btn-dark"><i class="bi bi-file-earmark-zip"></i> Base + Fotos e Documentos</a>
       </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="resetPasswordModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <form method="POST">
+        <input type="hidden" name="acao" value="redefinir_senha_usuario">
+        <input type="hidden" name="usuario_id" id="resetPasswordUserId">
+        <div class="modal-header bg-primary text-white">
+          <h5 class="modal-title"><i class="bi bi-key"></i> Redefinir Senha</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <p class="mb-3">Utilizador: <b id="resetPasswordUsername"></b></p>
+          <div class="mb-3"><label>Nova Senha</label><input type="password" name="nova_senha" class="form-control" required></div>
+          <div class="mb-0"><label>Confirmar Nova Senha</label><input type="password" name="confirma_senha" class="form-control" required></div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Atualizar Senha</button>
+        </div>
+      </form>
     </div>
   </div>
 </div>
@@ -2209,6 +2254,18 @@ document.addEventListener('DOMContentLoaded', function() {
                     input.disabled = true;
                 }
             });
+        });
+    });
+
+    var resetPasswordModalEl = document.getElementById('resetPasswordModal');
+    var resetPasswordModal = resetPasswordModalEl ? new bootstrap.Modal(resetPasswordModalEl) : null;
+    var resetPasswordUserId = document.getElementById('resetPasswordUserId');
+    var resetPasswordUsername = document.getElementById('resetPasswordUsername');
+    document.querySelectorAll('.btn-reset-password').forEach(function(button) {
+        button.addEventListener('click', function() {
+            resetPasswordUserId.value = button.getAttribute('data-user-id');
+            resetPasswordUsername.textContent = button.getAttribute('data-username');
+            resetPasswordModal.show();
         });
     });
 
