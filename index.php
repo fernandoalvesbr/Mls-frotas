@@ -27,6 +27,80 @@ function salvarDados($arquivo, $dados) {
     file_put_contents($arquivo, json_encode(array_values($dados), JSON_PRETTY_PRINT));
 }
 
+function lerConfigEmail() {
+    $padrao = array(
+        'envio_email_revisao' => '0',
+        'smtp_host' => 'smtp.mls.com.br',
+        'smtp_user' => '',
+        'smtp_port' => '587',
+        'smtp_security' => 'tls',
+        'smtp_from' => '',
+        'smtp_pass' => '',
+        'email_destinatario' => '',
+        'alertas_enviados' => array(),
+        'revisoes_feitas' => array()
+    );
+    if (!file_exists('config_email.json')) { return $padrao; }
+    $dados = json_decode(file_get_contents('config_email.json'), true);
+    return is_array($dados) ? array_merge($padrao, $dados) : $padrao;
+}
+
+function salvarConfigEmail($config) {
+    file_put_contents('config_email.json', json_encode($config, JSON_PRETTY_PRINT));
+}
+
+function enviarEmailSMTP($config, $assunto, $mensagem) {
+    $host = trim($config['smtp_host']);
+    $porta = (int)$config['smtp_port'];
+    $seguranca = isset($config['smtp_security']) ? $config['smtp_security'] : 'tls';
+    $usuario = trim($config['smtp_user']);
+    $senha = isset($config['smtp_pass']) ? $config['smtp_pass'] : '';
+    $remetente = trim($config['smtp_from']);
+    $destinatario = trim($config['email_destinatario']);
+    if ($host === '' || $porta <= 0 || $usuario === '' || $senha === '' || $remetente === '' || $destinatario === '') return false;
+
+    $target = ($seguranca === 'ssl' ? 'ssl://' : '') . $host;
+    $socket = @fsockopen($target, $porta, $errno, $errstr, 20);
+    if (!$socket) return false;
+    stream_set_timeout($socket, 20);
+    $read = function() use ($socket) { return fgets($socket, 515); };
+    $write = function($cmd) use ($socket) { fwrite($socket, $cmd . "\r\n"); };
+    $expect = function($codes) use ($read) {
+        $resp = '';
+        do { $line = $read(); $resp .= $line; } while ($line !== false && isset($line[3]) && $line[3] === '-');
+        foreach ((array)$codes as $code) { if (strpos($resp, (string)$code) === 0) return true; }
+        return false;
+    };
+
+    if (!$expect(220)) { fclose($socket); return false; }
+    $write('EHLO ' . (isset($_SERVER['SERVER_NAME']) ? $_SERVER['SERVER_NAME'] : 'localhost')); if (!$expect(250)) { fclose($socket); return false; }
+    if ($seguranca === 'tls') {
+        $write('STARTTLS'); if (!$expect(220) || !stream_socket_enable_crypto($socket, true, STREAM_CRYPTO_METHOD_TLS_CLIENT)) { fclose($socket); return false; }
+        $write('EHLO ' . (isset($_SERVER['SERVER_NAME']) ? $_SERVER['SERVER_NAME'] : 'localhost')); if (!$expect(250)) { fclose($socket); return false; }
+    }
+    $write('AUTH LOGIN'); if (!$expect(334)) { fclose($socket); return false; }
+    $write(base64_encode($usuario)); if (!$expect(334)) { fclose($socket); return false; }
+    $write(base64_encode($senha)); if (!$expect(235)) { fclose($socket); return false; }
+    $write('MAIL FROM:<' . $remetente . '>'); if (!$expect(250)) { fclose($socket); return false; }
+    $write('RCPT TO:<' . $destinatario . '>'); if (!$expect(array(250, 251))) { fclose($socket); return false; }
+    $write('DATA'); if (!$expect(354)) { fclose($socket); return false; }
+    $headers = "From: <{$remetente}>\r\nTo: <{$destinatario}>\r\nSubject: =?UTF-8?B?" . base64_encode($assunto) . "?=\r\nMIME-Version: 1.0\r\nContent-Type: text/plain; charset=UTF-8\r\n";
+    $write($headers . "\r\n" . str_replace("\n.", "\n..", $mensagem) . "\r\n.");
+    $ok = $expect(250);
+    $write('QUIT');
+    fclose($socket);
+    return $ok;
+}
+
+function calcularKmAtualVeiculos($veiculos, $abastecimentos, $lavagens, $utilizacao) {
+    $km_atual_veiculos = array();
+    foreach ($veiculos as $v) { $p = strtoupper(trim($v['placa'])); $km_atual_veiculos[$p] = isset($v['km_inicial']) && $v['km_inicial'] > 0 ? (int)$v['km_inicial'] : (isset($v['km_revisao']) ? (int)$v['km_revisao'] : 0); }
+    foreach ($abastecimentos as $abs) { $p = strtoupper(trim($abs['placa'])); if (!isset($km_atual_veiculos[$p])) $km_atual_veiculos[$p] = 0; if ((int)$abs['km'] > $km_atual_veiculos[$p]) { $km_atual_veiculos[$p] = (int)$abs['km']; } }
+    foreach ($lavagens as $lavagem) { $p = strtoupper(trim($lavagem['placa'])); if (!isset($km_atual_veiculos[$p])) $km_atual_veiculos[$p] = 0; if ((int)$lavagem['km'] > $km_atual_veiculos[$p]) { $km_atual_veiculos[$p] = (int)$lavagem['km']; } }
+    foreach ($utilizacao as $uso) { $p = strtoupper(trim($uso['placa'])); if (!isset($km_atual_veiculos[$p])) $km_atual_veiculos[$p] = 0; if ((int)$uso['km_final'] > $km_atual_veiculos[$p]) { $km_atual_veiculos[$p] = (int)$uso['km_final']; } }
+    return $km_atual_veiculos;
+}
+
 // Otimização e Compressão de Imagens para WEBP
 function fazerUpload($fileArray) {
     if (isset($fileArray) && $fileArray['error'] === 0) {
@@ -150,6 +224,7 @@ $tecnicos = lerDados($arquivos['tecnicos']);
 $cartoes = lerDados($arquivos['cartoes']);
 $lavagens = lerDados($arquivos['lavagens']);
 $emprestimos = lerDados($arquivos['emprestimos']);
+$configEmail = lerConfigEmail();
 
 usort($tecnicos, function($a, $b) { return strcasecmp(isset($a['nome']) ? $a['nome'] : '', isset($b['nome']) ? $b['nome'] : ''); });
 
@@ -206,6 +281,47 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao'])) {
                 }
                 if ($senhaAtualizada) { salvarDados($arquivos['usuarios'], $usuarios); $_SESSION['msg'] = "Senha do utilizador atualizada!"; }
                 else { $_SESSION['msg_erro'] = "Utilizador não encontrado."; }
+            }
+        }
+        elseif ($acao === 'salvar_config_email') {
+            $tab = 'dashboard';
+            if ($_SESSION['username'] !== 'admin') {
+                $_SESSION['msg_erro'] = "Apenas o admin principal pode alterar as opções de e-mail.";
+            } else {
+                $configEmail['envio_email_revisao'] = isset($_POST['envio_email_revisao']) ? $_POST['envio_email_revisao'] : '0';
+                $configEmail['smtp_host'] = trim($_POST['smtp_host']);
+                $configEmail['smtp_user'] = trim($_POST['smtp_user']);
+                $configEmail['smtp_port'] = trim($_POST['smtp_port']);
+                $configEmail['smtp_security'] = $_POST['smtp_security'];
+                $configEmail['smtp_from'] = trim($_POST['smtp_from']);
+                $configEmail['email_destinatario'] = trim($_POST['email_destinatario']);
+                if (isset($_POST['smtp_pass']) && $_POST['smtp_pass'] !== '') { $configEmail['smtp_pass'] = $_POST['smtp_pass']; }
+                if (!isset($configEmail['alertas_enviados']) || !is_array($configEmail['alertas_enviados'])) { $configEmail['alertas_enviados'] = array(); }
+                salvarConfigEmail($configEmail);
+                $_SESSION['msg'] = "Opções de e-mail atualizadas!";
+            }
+        }
+        elseif ($acao === 'marcar_revisao_feita') {
+            $tab = 'dashboard';
+            if ($_SESSION['username'] !== 'admin') {
+                $_SESSION['msg_erro'] = "Apenas o admin principal pode marcar revisões como feitas.";
+            } else {
+                if (!isset($configEmail['revisoes_feitas']) || !is_array($configEmail['revisoes_feitas'])) { $configEmail['revisoes_feitas'] = array(); }
+                $marcadas = 0;
+                $kmAtualParaRevisao = calcularKmAtualVeiculos($veiculos, $abastecimentos, $lavagens, $utilizacao);
+                foreach ($veiculos as $v) {
+                    if (isset($v['ativo']) && $v['ativo'] == 0) continue;
+                    $placaRev = strtoupper(trim($v['placa']));
+                    $kmAtualRev = isset($kmAtualParaRevisao[$placaRev]) ? $kmAtualParaRevisao[$placaRev] : (isset($v['km_inicial']) ? (int)$v['km_inicial'] : 0);
+                    $proximaRev = max(10000, ceil($kmAtualRev / 10000) * 10000);
+                    $faltaRev = $proximaRev - $kmAtualRev;
+                    if ($faltaRev >= 0 && $faltaRev <= 200) {
+                        $configEmail['revisoes_feitas'][$placaRev . '_' . $proximaRev] = date('Y-m-d H:i:s');
+                        $marcadas++;
+                    }
+                }
+                salvarConfigEmail($configEmail);
+                $_SESSION['msg'] = $marcadas > 0 ? "Revisão marcada como feita!" : "Nenhum veículo está na janela de revisão.";
             }
         }
         elseif ($acao === 'salvar_tecnico') {
@@ -871,12 +987,8 @@ foreach ($utilizacao_filtrada as $uso) {
     } 
 }
 
-$km_atual_veiculos = array();
-foreach ($veiculos as $v) { $p = strtoupper(trim($v['placa'])); $km_atual_veiculos[$p] = isset($v['km_inicial']) && $v['km_inicial'] > 0 ? (int)$v['km_inicial'] : (int)$v['km_revisao']; }
-foreach ($abastecimentos as $abs) { $p = strtoupper(trim($abs['placa'])); if (!isset($km_atual_veiculos[$p])) $km_atual_veiculos[$p] = 0; if ((int)$abs['km'] > $km_atual_veiculos[$p]) { $km_atual_veiculos[$p] = (int)$abs['km']; } }
-// A quilometragem da lavagem atualiza o painel/manutenção, mas não é usada no KM/L.
-foreach ($lavagens as $lavagem) { $p = strtoupper(trim($lavagem['placa'])); if (!isset($km_atual_veiculos[$p])) $km_atual_veiculos[$p] = 0; if ((int)$lavagem['km'] > $km_atual_veiculos[$p]) { $km_atual_veiculos[$p] = (int)$lavagem['km']; } }
-foreach ($utilizacao as $uso) { $p = strtoupper(trim($uso['placa'])); if (!isset($km_atual_veiculos[$p])) $km_atual_veiculos[$p] = 0; if ((int)$uso['km_final'] > $km_atual_veiculos[$p]) { $km_atual_veiculos[$p] = (int)$uso['km_final']; }
+$km_atual_veiculos = calcularKmAtualVeiculos($veiculos, $abastecimentos, $lavagens, $utilizacao);
+foreach ($utilizacao as $uso) { $p = strtoupper(trim($uso['placa']));
     if(isset($consumo_por_veiculo[$p])) { $consumo_por_veiculo[$p]['kms'][] = (int)$uso['km_final']; $consumo_por_veiculo[$p]['kms'][] = (int)$uso['km_inicial']; }
 }
 
@@ -898,6 +1010,34 @@ foreach ($veiculos as $v) {
     if (isset($v['ativo']) && $v['ativo'] == 0) continue;
     if (!empty($v['data_ipva'])) { if ($v['data_ipva'] < $hoje) { $alertas_docs[] = "IPVA do {$v['placa']} está VENCIDO!"; } elseif ($v['data_ipva'] <= $trinta_dias) { $alertas_docs[] = "IPVA do {$v['placa']} vence dia " . date('d/m/Y', strtotime($v['data_ipva'])); } }
     if (!empty($v['data_seguro'])) { if ($v['data_seguro'] < $hoje) { $alertas_docs[] = "Seguro do {$v['placa']} está VENCIDO!"; } elseif ($v['data_seguro'] <= $trinta_dias) { $alertas_docs[] = "Seguro do {$v['placa']} vence dia " . date('d/m/Y', strtotime($v['data_seguro'])); } }
+}
+
+$revisoesPendentesEmail = array();
+if (!isset($configEmail['revisoes_feitas']) || !is_array($configEmail['revisoes_feitas'])) { $configEmail['revisoes_feitas'] = array(); }
+foreach ($veiculos as $v) {
+    if (isset($v['ativo']) && $v['ativo'] == 0) continue;
+    $placaAlerta = strtoupper(trim($v['placa']));
+    $kmAtualAlerta = isset($km_atual_veiculos[$placaAlerta]) ? $km_atual_veiculos[$placaAlerta] : (isset($v['km_inicial']) ? (int)$v['km_inicial'] : 0);
+    $proximaRevisaoAlerta = max(10000, ceil($kmAtualAlerta / 10000) * 10000);
+    $faltaAlerta = $proximaRevisaoAlerta - $kmAtualAlerta;
+    $chaveRevisaoFeita = $placaAlerta . '_' . $proximaRevisaoAlerta;
+    if ($faltaAlerta >= 0 && $faltaAlerta <= 200 && empty($configEmail['revisoes_feitas'][$chaveRevisaoFeita])) {
+        $revisoesPendentesEmail[] = array('placa' => $placaAlerta, 'falta' => $faltaAlerta, 'proxima' => $proximaRevisaoAlerta);
+    }
+}
+
+if (isset($configEmail['envio_email_revisao']) && $configEmail['envio_email_revisao'] === '1') {
+    if (!isset($configEmail['alertas_enviados']) || !is_array($configEmail['alertas_enviados'])) { $configEmail['alertas_enviados'] = array(); }
+    foreach ($revisoesPendentesEmail as $alertaRev) {
+        $chaveAlerta = date('Y-m-d') . '_' . $alertaRev['placa'] . '_' . $alertaRev['proxima'];
+        if (empty($configEmail['alertas_enviados'][$chaveAlerta])) {
+            $mensagemAlerta = "Faltam exatamente " . $alertaRev['falta'] . " km para vencer a revisão do carro. LIGAR PARA A LOCADORA!";
+            if (enviarEmailSMTP($configEmail, 'Enviar carro para revisão', $mensagemAlerta)) {
+                $configEmail['alertas_enviados'][$chaveAlerta] = date('Y-m-d H:i:s');
+                salvarConfigEmail($configEmail);
+            }
+        }
+    }
 }
 
 // Relatório Especial de Abastecimentos com Excel layout
@@ -1225,6 +1365,9 @@ foreach ($abastecimentos_filtrados as $abs) {
                         <button type="submit" name="export" value="csv" class="btn btn-success ms-2"><i class="bi bi-file-earmark-excel"></i> Exportar CSV</button>
                     <?php endif; ?>
                     <?php if($tab_ativa === 'dashboard'): ?>
+                        <?php if($_SESSION['username'] === 'admin'): ?>
+                            <button type="button" class="btn btn-outline-dark ms-2" data-bs-toggle="modal" data-bs-target="#emailOptionsModal" title="Opções de e-mail"><i class="bi bi-gear-fill"></i></button>
+                        <?php endif; ?>
                         <button type="button" onclick="printReport('diretoria')" class="btn btn-dark ms-2"><i class="bi bi-briefcase-fill"></i> Relatório Diretoria</button>
                     <?php endif; ?>
                 </div>
@@ -2142,6 +2285,79 @@ foreach ($abastecimentos_filtrados as $abs) {
     </div>
   </div>
 </div>
+
+<div class="modal fade" id="emailOptionsModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-centered">
+    <div class="modal-content">
+      <form method="POST">
+        <input type="hidden" name="acao" value="salvar_config_email">
+        <div class="modal-header bg-dark text-white">
+          <h5 class="modal-title"><i class="bi bi-gear-fill"></i> Opções de E-mail</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="row g-3 align-items-end">
+            <div class="col-md-3">
+              <label>Envio automático de e-mails</label>
+              <select name="envio_email_revisao" class="form-select">
+                <option value="1" <?php echo $configEmail['envio_email_revisao'] === '1' ? 'selected' : ''; ?>>Ativado</option>
+                <option value="0" <?php echo $configEmail['envio_email_revisao'] !== '1' ? 'selected' : ''; ?>>Desativado</option>
+              </select>
+            </div>
+            <div class="col-md-3">
+              <label>Servidor SMTP</label>
+              <input type="text" name="smtp_host" class="form-control" value="<?php echo htmlspecialchars($configEmail['smtp_host']); ?>">
+            </div>
+            <div class="col-md-3">
+              <label>Usuário SMTP</label>
+              <input type="text" name="smtp_user" class="form-control" value="<?php echo htmlspecialchars($configEmail['smtp_user']); ?>">
+            </div>
+            <div class="col-md-3">
+              <label>Porta</label>
+              <input type="number" name="smtp_port" class="form-control" value="<?php echo htmlspecialchars($configEmail['smtp_port']); ?>">
+            </div>
+            <div class="col-md-3">
+              <label>Segurança</label>
+              <select name="smtp_security" class="form-select">
+                <option value="tls" <?php echo $configEmail['smtp_security'] === 'tls' ? 'selected' : ''; ?>>TLS</option>
+                <option value="ssl" <?php echo $configEmail['smtp_security'] === 'ssl' ? 'selected' : ''; ?>>SSL</option>
+                <option value="none" <?php echo $configEmail['smtp_security'] === 'none' ? 'selected' : ''; ?>>Nenhuma</option>
+              </select>
+            </div>
+            <div class="col-md-3">
+              <label>Remetente</label>
+              <input type="email" name="smtp_from" class="form-control" value="<?php echo htmlspecialchars($configEmail['smtp_from']); ?>">
+            </div>
+            <div class="col-md-3">
+              <label>E-mail destinatário</label>
+              <input type="email" name="email_destinatario" class="form-control" value="<?php echo htmlspecialchars($configEmail['email_destinatario']); ?>">
+            </div>
+            <div class="col-md-3">
+              <label>Senha SMTP</label>
+              <input type="password" name="smtp_pass" class="form-control" placeholder="<?php echo !empty($configEmail['smtp_pass']) ? 'Senha salva' : ''; ?>">
+            </div>
+          </div>
+          <div class="border-top mt-4 pt-3">
+            <div class="d-flex flex-wrap align-items-center gap-2">
+              <button type="submit" form="markRevisionDoneForm" class="btn btn-warning" <?php echo ($configEmail['envio_email_revisao'] !== '1' || empty($revisoesPendentesEmail)) ? 'disabled' : ''; ?>><i class="bi bi-check-circle"></i> Já fiz a revisão</button>
+              <small class="text-muted">
+                <?php echo $configEmail['envio_email_revisao'] !== '1' ? 'Ative o envio automático para usar esta opção.' : (empty($revisoesPendentesEmail) ? 'Nenhum carro está na janela de 200 km da revisão.' : count($revisoesPendentesEmail) . ' carro(s) na janela de revisão.'); ?>
+              </small>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-dark"><i class="bi bi-save"></i> Salvar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<form method="POST" id="markRevisionDoneForm" class="d-none">
+  <input type="hidden" name="acao" value="marcar_revisao_feita">
+</form>
 
 <div class="modal fade" id="resetPasswordModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">
