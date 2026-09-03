@@ -283,7 +283,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao'])) {
                 else { $_SESSION['msg_erro'] = "Utilizador não encontrado."; }
             }
         }
-        elseif ($acao === 'salvar_config_email') {
+        elseif ($acao === 'salvar_config_email' || $acao === 'testar_config_email') {
             $tab = 'dashboard';
             if ($_SESSION['username'] !== 'admin') {
                 $_SESSION['msg_erro'] = "Apenas o admin principal pode alterar as opções de e-mail.";
@@ -298,7 +298,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao'])) {
                 if (isset($_POST['smtp_pass']) && $_POST['smtp_pass'] !== '') { $configEmail['smtp_pass'] = $_POST['smtp_pass']; }
                 if (!isset($configEmail['alertas_enviados']) || !is_array($configEmail['alertas_enviados'])) { $configEmail['alertas_enviados'] = array(); }
                 salvarConfigEmail($configEmail);
-                $_SESSION['msg'] = "Opções de e-mail atualizadas!";
+                if ($acao === 'testar_config_email') {
+                    $mensagemTeste = "Este é um e-mail de teste do sistema MLS Frotas.";
+                    $_SESSION['msg'] = enviarEmailSMTP($configEmail, 'Teste de e-mail - MLS Frotas', $mensagemTeste) ? "E-mail de teste enviado!" : "Opções salvas, mas não foi possível enviar o e-mail de teste.";
+                } else {
+                    $_SESSION['msg'] = "Opções de e-mail atualizadas!";
+                }
             }
         }
         elseif ($acao === 'marcar_revisao_feita') {
@@ -2290,7 +2295,7 @@ foreach ($abastecimentos_filtrados as $abs) {
   <div class="modal-dialog modal-xl modal-dialog-centered">
     <div class="modal-content">
       <form method="POST">
-        <input type="hidden" name="acao" value="salvar_config_email">
+        <input type="hidden" name="acao" id="emailConfigAction" value="salvar_config_email">
         <div class="modal-header bg-dark text-white">
           <h5 class="modal-title"><i class="bi bi-gear-fill"></i> Opções de E-mail</h5>
           <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
@@ -2348,7 +2353,8 @@ foreach ($abastecimentos_filtrados as $abs) {
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-          <button type="submit" class="btn btn-dark"><i class="bi bi-save"></i> Salvar</button>
+          <button type="submit" class="btn btn-outline-primary" onclick="document.getElementById('emailConfigAction').value='testar_config_email';"><i class="bi bi-envelope-check"></i> Testar e-mail</button>
+          <button type="submit" class="btn btn-dark" onclick="document.getElementById('emailConfigAction').value='salvar_config_email';"><i class="bi bi-save"></i> Salvar</button>
         </div>
       </form>
     </div>
