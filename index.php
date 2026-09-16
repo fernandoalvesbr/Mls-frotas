@@ -1147,7 +1147,7 @@ foreach ($abastecimentos_filtrados as $abs) {
         body.dark-mode .theme-switch-icon.bi-moon-fill { color: #f1c40f; }
         
         /* Relatórios para Impressão */
-        .print-only-diretoria, .print-only-abastecimentos { display: none; }
+        .print-only-diretoria, .print-only-abastecimentos, .print-only-abastecimentos-detalhado, .print-only-abastecimentos-lavagens, .print-only-lavagens { display: none; }
         
         @media print {
             body { background: #fff !important; color: #000 !important; font-size: 11pt; }
@@ -1158,6 +1158,16 @@ foreach ($abastecimentos_filtrados as $abs) {
             
             body.print-mode-abastecimentos .print-only-abastecimentos { display: block !important; padding: 20px; }
             body.print-mode-abastecimentos .tab-content { display: none !important; }
+
+            body.print-mode-abastecimentos-detalhado .print-only-abastecimentos-detalhado { display: block !important; padding: 12px; }
+            body.print-mode-abastecimentos-detalhado .tab-content { display: none !important; }
+            body.print-mode-abastecimentos-lavagens .print-only-abastecimentos-lavagens { display: block !important; padding: 12px; }
+            body.print-mode-abastecimentos-lavagens .tab-content { display: none !important; }
+            body.print-mode-lavagens .print-only-lavagens { display: block !important; padding: 12px; }
+            body.print-mode-lavagens .tab-content { display: none !important; }
+            .print-only-abastecimentos-detalhado .table th, .print-only-abastecimentos-detalhado .table td,
+            .print-only-abastecimentos-lavagens .table th, .print-only-abastecimentos-lavagens .table td,
+            .print-only-lavagens .table th, .print-only-lavagens .table td { font-size: 8pt; padding: 4px !important; overflow-wrap: anywhere; }
             
             .card, .card-body { border: none !important; box-shadow: none !important; padding: 0 !important; margin: 0 !important; background: transparent !important; }
             .col-md-4 { width: 33.333% !important; float: left !important; }
@@ -1242,6 +1252,106 @@ foreach ($abastecimentos_filtrados as $abs) {
         <div class="line"></div>
         <p><b>Assinatura do Gestor Responsável</b></p>
     </div>
+</div>
+
+<?php
+$lancamentos_abastecimento_lavagem = array();
+foreach ($abastecimentos_filtrados as $abs) { $lancamentos_abastecimento_lavagem[] = array('tipo' => 'Abastecimento', 'dados' => $abs); }
+foreach ($lavagens_filtradas as $lavagem) { $lancamentos_abastecimento_lavagem[] = array('tipo' => 'Lavagem', 'dados' => $lavagem); }
+usort($lancamentos_abastecimento_lavagem, function ($a, $b) use ($funcaoOrdenacao) { return $funcaoOrdenacao($a['dados'], $b['dados']); });
+?>
+<div class="print-only-abastecimentos-lavagens">
+    <div class="report-header">
+        <h2>Relatório de Abastecimentos e Lavagens</h2>
+        <p>Período: <?php echo date('d/m/Y', strtotime($data_inicio)) . ' até ' . date('d/m/Y', strtotime($data_fim)); ?>
+            | Placa: <?php echo $filtro_placa === '' ? 'Todas' : htmlspecialchars($filtro_placa); ?>
+            | Emitido em: <?php echo date('d/m/Y H:i'); ?></p>
+        <p><?php echo $qtd_abastecimentos; ?> abastecimento(s): R$ <?php echo number_format($total_abastecimento, 2, ',', '.'); ?>
+            | <?php echo $qtd_lavagens; ?> lavagem(s): R$ <?php echo number_format($total_lavagens, 2, ',', '.'); ?>
+            | Total geral: R$ <?php echo number_format($total_abastecimento + $total_lavagens, 2, ',', '.'); ?></p>
+    </div>
+    <table class="table">
+        <thead>
+            <tr><th>Tipo</th><th>Data</th><th>Condutor</th><th>Placa</th><th>KM</th><th>Lts</th><th>KM/L</th><th>Valor</th><th>Pagamento</th><th>NF</th></tr>
+        </thead>
+        <tbody>
+            <?php foreach ($lancamentos_abastecimento_lavagem as $lancamento): $item = $lancamento['dados']; $eh_abastecimento = $lancamento['tipo'] === 'Abastecimento'; ?>
+            <tr>
+                <td><?php echo $lancamento['tipo']; ?></td>
+                <td><?php echo date('d/m/Y', strtotime($item['data'])); ?></td>
+                <td><?php echo htmlspecialchars($item['condutor']); ?></td>
+                <td><?php echo htmlspecialchars($item['placa']); ?></td>
+                <td><?php echo htmlspecialchars($item['km']); ?></td>
+                <td><?php echo $eh_abastecimento && isset($item['litros']) ? htmlspecialchars($item['litros']) : '-'; ?></td>
+                <td><?php echo $eh_abastecimento ? htmlspecialchars($item['kml_calc']) : '-'; ?></td>
+                <td>R$ <?php echo number_format($item['valor'], 2, ',', '.'); ?></td>
+                <td><?php echo htmlspecialchars($item['cartao']); ?><?php foreach ($cartoes as $c) { if ($c['nome'] === $item['cartao'] && !empty($c['numero_cartao'])) { echo '<br>' . htmlspecialchars($c['numero_cartao']); break; } } ?></td>
+                <td><?php if (!empty($item['anexo'])): ?><a href="<?php echo htmlspecialchars($item['anexo']); ?>">Ver</a><?php else: ?>-<?php endif; ?></td>
+            </tr>
+            <?php endforeach; ?>
+            <?php if (empty($lancamentos_abastecimento_lavagem)): ?><tr><td colspan="10" class="text-center">Nenhum lançamento no período.</td></tr><?php endif; ?>
+        </tbody>
+    </table>
+</div>
+
+<div class="print-only-lavagens">
+    <div class="report-header">
+        <h2>Relatório de Lavagens</h2>
+        <p>Período: <?php echo date('d/m/Y', strtotime($data_inicio)) . ' até ' . date('d/m/Y', strtotime($data_fim)); ?>
+            | Placa: <?php echo $filtro_placa === '' ? 'Todas' : htmlspecialchars($filtro_placa); ?>
+            | Emitido em: <?php echo date('d/m/Y H:i'); ?></p>
+        <p><?php echo $qtd_lavagens; ?> lavagem(s) | Total: R$ <?php echo number_format($total_lavagens, 2, ',', '.'); ?></p>
+    </div>
+    <table class="table">
+        <thead>
+            <tr><th>Data</th><th>Condutor</th><th>Placa</th><th>KM</th><th>Valor</th><th>Pagamento</th><th>NF</th></tr>
+        </thead>
+        <tbody>
+            <?php foreach ($lavagens_filtradas as $lavagem): ?>
+            <tr>
+                <td><?php echo date('d/m/Y', strtotime($lavagem['data'])); ?></td>
+                <td><?php echo htmlspecialchars($lavagem['condutor']); ?></td>
+                <td><?php echo htmlspecialchars($lavagem['placa']); ?></td>
+                <td><?php echo htmlspecialchars($lavagem['km']); ?></td>
+                <td>R$ <?php echo number_format($lavagem['valor'], 2, ',', '.'); ?></td>
+                <td><?php echo htmlspecialchars($lavagem['cartao']); ?><?php foreach ($cartoes as $c) { if ($c['nome'] === $lavagem['cartao'] && !empty($c['numero_cartao'])) { echo '<br>' . htmlspecialchars($c['numero_cartao']); break; } } ?></td>
+                <td><?php if (!empty($lavagem['anexo'])): ?><a href="<?php echo htmlspecialchars($lavagem['anexo']); ?>">Ver</a><?php else: ?>-<?php endif; ?></td>
+            </tr>
+            <?php endforeach; ?>
+            <?php if (empty($lavagens_filtradas)): ?><tr><td colspan="7" class="text-center">Nenhuma lavagem no período.</td></tr><?php endif; ?>
+        </tbody>
+    </table>
+</div>
+
+<div class="print-only-abastecimentos-detalhado">
+    <div class="report-header">
+        <h2>Relatório de Abastecimentos</h2>
+        <p>Período: <?php echo date('d/m/Y', strtotime($data_inicio)) . ' até ' . date('d/m/Y', strtotime($data_fim)); ?>
+            | Placa: <?php echo $filtro_placa === '' ? 'Todas' : htmlspecialchars($filtro_placa); ?>
+            | Emitido em: <?php echo date('d/m/Y H:i'); ?></p>
+        <p><?php echo $qtd_abastecimentos; ?> abastecimento(s) | Total: R$ <?php echo number_format($total_abastecimento, 2, ',', '.'); ?></p>
+    </div>
+    <table class="table">
+        <thead>
+            <tr><th>Data</th><th>Condutor</th><th>Placa</th><th>KM</th><th>Lts</th><th>KM/L</th><th>Valor</th><th>Pagamento</th><th>NF</th></tr>
+        </thead>
+        <tbody>
+            <?php foreach ($abastecimentos_filtrados as $abs): ?>
+            <tr>
+                <td><?php echo date('d/m/Y', strtotime($abs['data'])); ?></td>
+                <td><?php echo htmlspecialchars($abs['condutor']); ?></td>
+                <td><?php echo htmlspecialchars($abs['placa']); ?></td>
+                <td><?php echo htmlspecialchars($abs['km']); ?></td>
+                <td><?php echo isset($abs['litros']) ? htmlspecialchars($abs['litros']) : '-'; ?></td>
+                <td><?php echo htmlspecialchars($abs['kml_calc']); ?></td>
+                <td>R$ <?php echo number_format($abs['valor'], 2, ',', '.'); ?></td>
+                <td><?php echo htmlspecialchars($abs['cartao']); ?><?php foreach ($cartoes as $c) { if ($c['nome'] === $abs['cartao'] && !empty($c['numero_cartao'])) { echo '<br>' . htmlspecialchars($c['numero_cartao']); break; } } ?></td>
+                <td><?php if (!empty($abs['anexo'])): ?><a href="<?php echo htmlspecialchars($abs['anexo']); ?>">Ver</a><?php else: ?>-<?php endif; ?></td>
+            </tr>
+            <?php endforeach; ?>
+            <?php if (empty($abastecimentos_filtrados)): ?><tr><td colspan="9" class="text-center">Nenhum abastecimento no período.</td></tr><?php endif; ?>
+        </tbody>
+    </table>
 </div>
 
 <!-- HEADER IMPRESSÃO (RELATÓRIO DE ABASTECIMENTOS) -->
@@ -1651,9 +1761,13 @@ foreach ($abastecimentos_filtrados as $abs) {
 
                 <div class="<?php echo $isAdmin ? 'col-md-9' : 'col-md-12'; ?>">
                     <div class="card">
-                        <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                        <div class="card-header bg-light d-flex justify-content-between align-items-center flex-wrap gap-2">
                             <b>Histórico de Abastecimentos</b>
-                            <button type="button" class="btn btn-dark btn-sm print-hide" onclick="printReport('abastecimentos')"><i class="bi bi-printer"></i> Imprimir Relatório Excel</button>
+                            <div class="d-flex flex-wrap gap-2 print-hide">
+                                <button type="button" class="btn btn-dark btn-sm" onclick="printReport('abastecimentos-lavagens')"><i class="bi bi-printer"></i> Imprimir Relatório Abastecimento e Lavagem</button>
+                                <button type="button" class="btn btn-dark btn-sm" onclick="printReport('abastecimentos-detalhado')"><i class="bi bi-printer"></i> Imprimir Relatório</button>
+                                <button type="button" class="btn btn-dark btn-sm" onclick="printReport('abastecimentos')"><i class="bi bi-printer"></i> Imprimir Relatório Resumido</button>
+                            </div>
                         </div>
                         <div class="card-body p-3">
                             <div class="table-responsive">
@@ -1723,7 +1837,13 @@ foreach ($abastecimentos_filtrados as $abs) {
 
                 <div class="<?php echo $isAdmin ? 'col-md-9' : 'col-md-12'; ?>">
                     <div class="card">
-                        <div class="card-header bg-light"><b>Histórico de Lavagens</b></div>
+                        <div class="card-header bg-light d-flex justify-content-between align-items-center flex-wrap gap-2">
+                            <b>Histórico de Lavagens</b>
+                            <div class="d-flex flex-wrap gap-2 print-hide">
+                                <button type="button" class="btn btn-dark btn-sm" onclick="printReport('abastecimentos-lavagens')"><i class="bi bi-printer"></i> Imprimir Relatório Abastecimento e Lavagem</button>
+                                <button type="button" class="btn btn-dark btn-sm" onclick="printReport('lavagens')"><i class="bi bi-printer"></i> Imprimir Relatório</button>
+                            </div>
+                        </div>
                         <div class="card-body p-3">
                             <div class="table-responsive">
                                 <table class="table table-striped table-hover align-middle mb-0">
@@ -2422,7 +2542,7 @@ function printReport(type) {
 }
 
 window.addEventListener('afterprint', function() {
-    document.body.classList.remove('print-mode-diretoria', 'print-mode-abastecimentos');
+    document.body.classList.remove('print-mode-diretoria', 'print-mode-abastecimentos', 'print-mode-abastecimentos-detalhado', 'print-mode-abastecimentos-lavagens', 'print-mode-lavagens');
 });
 
 function confirmDelete(url) { document.getElementById('confirmDeleteBtn').href = url; new bootstrap.Modal(document.getElementById('deleteModal')).show(); }
