@@ -1272,7 +1272,7 @@ usort($lancamentos_abastecimento_lavagem, function ($a, $b) use ($funcaoOrdenaca
     </div>
     <table class="table">
         <thead>
-            <tr><th>Tipo</th><th>Data</th><th>Condutor</th><th>Placa</th><th>KM</th><th>Lts</th><th>KM/L</th><th>Valor</th><th>Pagamento</th><th>NF</th></tr>
+            <tr><th>Tipo</th><th>Data</th><th>Condutor</th><th>Placa</th><th>KM</th><th>Lts</th><th>KM/L</th><th>Valor</th><th>Pagamento</th></tr>
         </thead>
         <tbody>
             <?php foreach ($lancamentos_abastecimento_lavagem as $lancamento): $item = $lancamento['dados']; $eh_abastecimento = $lancamento['tipo'] === 'Abastecimento'; ?>
@@ -1286,10 +1286,9 @@ usort($lancamentos_abastecimento_lavagem, function ($a, $b) use ($funcaoOrdenaca
                 <td><?php echo $eh_abastecimento ? htmlspecialchars($item['kml_calc']) : '-'; ?></td>
                 <td>R$ <?php echo number_format($item['valor'], 2, ',', '.'); ?></td>
                 <td><?php echo htmlspecialchars($item['cartao']); ?><?php foreach ($cartoes as $c) { if ($c['nome'] === $item['cartao'] && !empty($c['numero_cartao'])) { echo '<br>' . htmlspecialchars($c['numero_cartao']); break; } } ?></td>
-                <td><?php if (!empty($item['anexo'])): ?><a href="<?php echo htmlspecialchars($item['anexo']); ?>">Ver</a><?php else: ?>-<?php endif; ?></td>
             </tr>
             <?php endforeach; ?>
-            <?php if (empty($lancamentos_abastecimento_lavagem)): ?><tr><td colspan="10" class="text-center">Nenhum lançamento no período.</td></tr><?php endif; ?>
+            <?php if (empty($lancamentos_abastecimento_lavagem)): ?><tr><td colspan="9" class="text-center">Nenhum lançamento no período.</td></tr><?php endif; ?>
         </tbody>
     </table>
 </div>
@@ -1304,7 +1303,7 @@ usort($lancamentos_abastecimento_lavagem, function ($a, $b) use ($funcaoOrdenaca
     </div>
     <table class="table">
         <thead>
-            <tr><th>Data</th><th>Condutor</th><th>Placa</th><th>KM</th><th>Valor</th><th>Pagamento</th><th>NF</th></tr>
+            <tr><th>Data</th><th>Condutor</th><th>Placa</th><th>KM</th><th>Valor</th><th>Pagamento</th></tr>
         </thead>
         <tbody>
             <?php foreach ($lavagens_filtradas as $lavagem): ?>
@@ -1315,10 +1314,9 @@ usort($lancamentos_abastecimento_lavagem, function ($a, $b) use ($funcaoOrdenaca
                 <td><?php echo htmlspecialchars($lavagem['km']); ?></td>
                 <td>R$ <?php echo number_format($lavagem['valor'], 2, ',', '.'); ?></td>
                 <td><?php echo htmlspecialchars($lavagem['cartao']); ?><?php foreach ($cartoes as $c) { if ($c['nome'] === $lavagem['cartao'] && !empty($c['numero_cartao'])) { echo '<br>' . htmlspecialchars($c['numero_cartao']); break; } } ?></td>
-                <td><?php if (!empty($lavagem['anexo'])): ?><a href="<?php echo htmlspecialchars($lavagem['anexo']); ?>">Ver</a><?php else: ?>-<?php endif; ?></td>
             </tr>
             <?php endforeach; ?>
-            <?php if (empty($lavagens_filtradas)): ?><tr><td colspan="7" class="text-center">Nenhuma lavagem no período.</td></tr><?php endif; ?>
+            <?php if (empty($lavagens_filtradas)): ?><tr><td colspan="6" class="text-center">Nenhuma lavagem no período.</td></tr><?php endif; ?>
         </tbody>
     </table>
 </div>
@@ -1333,7 +1331,7 @@ usort($lancamentos_abastecimento_lavagem, function ($a, $b) use ($funcaoOrdenaca
     </div>
     <table class="table">
         <thead>
-            <tr><th>Data</th><th>Condutor</th><th>Placa</th><th>KM</th><th>Lts</th><th>KM/L</th><th>Valor</th><th>Pagamento</th><th>NF</th></tr>
+            <tr><th>Data</th><th>Condutor</th><th>Placa</th><th>KM</th><th>Lts</th><th>KM/L</th><th>Valor</th><th>Pagamento</th></tr>
         </thead>
         <tbody>
             <?php foreach ($abastecimentos_filtrados as $abs): ?>
@@ -1346,10 +1344,9 @@ usort($lancamentos_abastecimento_lavagem, function ($a, $b) use ($funcaoOrdenaca
                 <td><?php echo htmlspecialchars($abs['kml_calc']); ?></td>
                 <td>R$ <?php echo number_format($abs['valor'], 2, ',', '.'); ?></td>
                 <td><?php echo htmlspecialchars($abs['cartao']); ?><?php foreach ($cartoes as $c) { if ($c['nome'] === $abs['cartao'] && !empty($c['numero_cartao'])) { echo '<br>' . htmlspecialchars($c['numero_cartao']); break; } } ?></td>
-                <td><?php if (!empty($abs['anexo'])): ?><a href="<?php echo htmlspecialchars($abs['anexo']); ?>">Ver</a><?php else: ?>-<?php endif; ?></td>
             </tr>
             <?php endforeach; ?>
-            <?php if (empty($abastecimentos_filtrados)): ?><tr><td colspan="9" class="text-center">Nenhum abastecimento no período.</td></tr><?php endif; ?>
+            <?php if (empty($abastecimentos_filtrados)): ?><tr><td colspan="8" class="text-center">Nenhum abastecimento no período.</td></tr><?php endif; ?>
         </tbody>
     </table>
 </div>
