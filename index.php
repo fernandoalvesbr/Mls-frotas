@@ -1147,7 +1147,7 @@ foreach ($abastecimentos_filtrados as $abs) {
         body.dark-mode .theme-switch-icon.bi-moon-fill { color: #f1c40f; }
         
         /* Relatórios para Impressão */
-        .print-only-diretoria, .print-only-abastecimentos, .print-only-abastecimentos-detalhado, .print-only-abastecimentos-lavagens, .print-only-lavagens { display: none; }
+        .print-only-diretoria, .print-only-abastecimentos, .print-only-abastecimentos-detalhado, .print-only-abastecimentos-lavagens, .print-only-lavagens, .print-only-rotas { display: none; }
         
         @media print {
             body { background: #fff !important; color: #000 !important; font-size: 11pt; }
@@ -1165,9 +1165,12 @@ foreach ($abastecimentos_filtrados as $abs) {
             body.print-mode-abastecimentos-lavagens .tab-content { display: none !important; }
             body.print-mode-lavagens .print-only-lavagens { display: block !important; padding: 12px; }
             body.print-mode-lavagens .tab-content { display: none !important; }
+            body.print-mode-rotas .print-only-rotas { display: block !important; padding: 12px; }
+            body.print-mode-rotas .tab-content { display: none !important; }
             .print-only-abastecimentos-detalhado .table th, .print-only-abastecimentos-detalhado .table td,
             .print-only-abastecimentos-lavagens .table th, .print-only-abastecimentos-lavagens .table td,
-            .print-only-lavagens .table th, .print-only-lavagens .table td { font-size: 8pt; padding: 4px !important; overflow-wrap: anywhere; }
+            .print-only-lavagens .table th, .print-only-lavagens .table td,
+            .print-only-rotas .table th, .print-only-rotas .table td { font-size: 8pt; padding: 4px !important; overflow-wrap: anywhere; }
             
             .card, .card-body { border: none !important; box-shadow: none !important; padding: 0 !important; margin: 0 !important; background: transparent !important; }
             .col-md-4 { width: 33.333% !important; float: left !important; }
@@ -1185,6 +1188,39 @@ foreach ($abastecimentos_filtrados as $abs) {
     </style>
 </head>
 <body class="<?php echo isset($_COOKIE['theme']) && $_COOKIE['theme'] === 'dark' ? 'dark-mode' : ''; ?>">
+
+<?php
+$total_km_rotas_filtradas = 0;
+foreach ($utilizacao_filtrada as $uso) { $total_km_rotas_filtradas += $uso['km_final'] - $uso['km_inicial']; }
+?>
+<div class="print-only-rotas">
+    <div class="report-header">
+        <h2>Relatório de Rotas</h2>
+        <p>Período: <?php echo date('d/m/Y', strtotime($data_inicio)) . ' até ' . date('d/m/Y', strtotime($data_fim)); ?>
+            | Placa: <?php echo $filtro_placa === '' ? 'Todas' : htmlspecialchars($filtro_placa); ?>
+            | Emitido em: <?php echo date('d/m/Y H:i'); ?></p>
+        <p><?php echo count($utilizacao_filtrada); ?> rota(s) | Total percorrido: <?php echo number_format($total_km_rotas_filtradas, 0, '', '.'); ?> km</p>
+    </div>
+    <table class="table">
+        <thead>
+            <tr><th>Data</th><th>Condutor</th><th>Rota</th><th>Placa</th><th>KM Inic.</th><th>KM Final</th><th>Total KM</th></tr>
+        </thead>
+        <tbody>
+            <?php foreach ($utilizacao_filtrada as $uso): ?>
+            <tr>
+                <td><?php echo date('d/m/Y', strtotime($uso['data'])); ?></td>
+                <td><?php echo htmlspecialchars($uso['condutor']); ?></td>
+                <td><?php echo nl2br(htmlspecialchars($uso['rota'])); ?></td>
+                <td><?php echo htmlspecialchars($uso['placa']); ?></td>
+                <td><?php echo htmlspecialchars($uso['km_inicial']); ?></td>
+                <td><?php echo htmlspecialchars($uso['km_final']); ?></td>
+                <td><?php echo number_format($uso['km_final'] - $uso['km_inicial'], 0, '', '.'); ?> km</td>
+            </tr>
+            <?php endforeach; ?>
+            <?php if (empty($utilizacao_filtrada)): ?><tr><td colspan="7" class="text-center">Nenhuma rota no período.</td></tr><?php endif; ?>
+        </tbody>
+    </table>
+</div>
 
 <!-- HEADER IMPRESSÃO (RELATÓRIO DIRETORIA) -->
 <div class="print-only-diretoria">
@@ -1699,7 +1735,10 @@ usort($lancamentos_abastecimento_lavagem, function ($a, $b) use ($funcaoOrdenaca
                 
                 <div class="<?php echo $isAdmin ? 'col-md-9' : 'col-md-12'; ?>">
                     <div class="card">
-                        <div class="card-header bg-light"><b>Histórico de Rotas</b></div>
+                        <div class="card-header bg-light d-flex justify-content-between align-items-center flex-wrap gap-2">
+                            <b>Histórico de Rotas</b>
+                            <button type="button" class="btn btn-dark btn-sm print-hide" onclick="printReport('rotas')"><i class="bi bi-printer"></i> Imprimir Relatório</button>
+                        </div>
                         <div class="card-body p-3">
                             <div class="table-responsive">
                                 <table class="table table-striped table-hover align-middle mb-0" style="font-size: 0.9em;">
@@ -2539,7 +2578,7 @@ function printReport(type) {
 }
 
 window.addEventListener('afterprint', function() {
-    document.body.classList.remove('print-mode-diretoria', 'print-mode-abastecimentos', 'print-mode-abastecimentos-detalhado', 'print-mode-abastecimentos-lavagens', 'print-mode-lavagens');
+    document.body.classList.remove('print-mode-diretoria', 'print-mode-abastecimentos', 'print-mode-abastecimentos-detalhado', 'print-mode-abastecimentos-lavagens', 'print-mode-lavagens', 'print-mode-rotas');
 });
 
 function confirmDelete(url) { document.getElementById('confirmDeleteBtn').href = url; new bootstrap.Modal(document.getElementById('deleteModal')).show(); }
