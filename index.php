@@ -13,7 +13,8 @@ $arquivos = array(
     'usuarios' => 'usuarios.json',
     'cartoes' => 'cartoes.json',
     'lavagens' => 'lavagens.json',
-    'emprestimos' => 'emprestimos.json'
+    'emprestimos' => 'emprestimos.json',
+    'ocorrencias' => 'ocorrencias.json'
 );
 
 function lerDados($arquivo) {
@@ -156,6 +157,15 @@ function reArrayFiles(&$file_post) {
     return $file_ary;
 }
 
+function apagarUploadSeguro($arquivo) {
+    $uploadsDir = realpath('uploads');
+    $arquivoReal = is_string($arquivo) ? realpath($arquivo) : false;
+    if ($uploadsDir !== false && $arquivoReal !== false && strpos($arquivoReal, $uploadsDir . DIRECTORY_SEPARATOR) === 0 && is_file($arquivoReal)) {
+        return unlink($arquivoReal);
+    }
+    return false;
+}
+
 // Helper para Gerar Texto de Auditoria (Quem criou e quem editou)
 function getTooltipAuditoria($item) {
     $criado = isset($item['criado_por']) && !empty($item['criado_por']) ? $item['criado_por'] : 'Sistema/Desconhecido';
@@ -224,6 +234,7 @@ $tecnicos = lerDados($arquivos['tecnicos']);
 $cartoes = lerDados($arquivos['cartoes']);
 $lavagens = lerDados($arquivos['lavagens']);
 $emprestimos = lerDados($arquivos['emprestimos']);
+$ocorrencias = lerDados($arquivos['ocorrencias']);
 $configEmail = lerConfigEmail();
 
 usort($tecnicos, function($a, $b) { return strcasecmp(isset($a['nome']) ? $a['nome'] : '', isset($b['nome']) ? $b['nome'] : ''); });
@@ -526,6 +537,45 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao'])) {
             else { $emprestimos[] = $novo; $_SESSION['msg'] = "Empréstimo registado!"; }
             salvarDados($arquivos['emprestimos'], $emprestimos); $tab = 'emprestimos';
         }
+        elseif ($acao === 'salvar_ocorrencia') {
+            $id = !empty($_POST['ocorrencia_id']) ? $_POST['ocorrencia_id'] : uniqid();
+            $fotosAtuais = array();
+            $criado_por = $_SESSION['username'];
+            $editado_por = '';
+
+            if (!empty($_POST['ocorrencia_id'])) {
+                foreach ($ocorrencias as $o) {
+                    if ($o['id'] === $id) {
+                        $fotosAtuais = isset($o['fotos']) && is_array($o['fotos']) ? $o['fotos'] : array();
+                        $criado_por = isset($o['criado_por']) ? $o['criado_por'] : 'Desconhecido';
+                        $editado_por = $_SESSION['username'];
+                        break;
+                    }
+                }
+            }
+            if (isset($_POST['remover_fotos_ocorrencia']) && is_array($_POST['remover_fotos_ocorrencia'])) {
+                foreach ($_POST['remover_fotos_ocorrencia'] as $fotoRemover) {
+                    if (in_array($fotoRemover, $fotosAtuais, true)) {
+                        apagarUploadSeguro($fotoRemover);
+                        $fotosAtuais = array_diff($fotosAtuais, array($fotoRemover));
+                    }
+                }
+                $fotosAtuais = array_values($fotosAtuais);
+            }
+            if (isset($_FILES['fotos_ocorrencia']) && !empty($_FILES['fotos_ocorrencia']['name'][0])) {
+                $file_ary = reArrayFiles($_FILES['fotos_ocorrencia']);
+                foreach ($file_ary as $file) { $novaFoto = fazerUpload($file); if ($novaFoto !== '') { $fotosAtuais[] = $novaFoto; } }
+            }
+
+            $novo = array(
+                'id' => $id, 'data' => $_POST['data'], 'condutor' => trim($_POST['condutor']),
+                'placa' => strtoupper(trim($_POST['placa'])), 'ocorrencia' => trim($_POST['ocorrencia']),
+                'fotos' => $fotosAtuais, 'criado_por' => $criado_por, 'editado_por' => $editado_por
+            );
+            if (!empty($_POST['ocorrencia_id'])) { foreach ($ocorrencias as $k => $v) { if ($v['id'] === $id) { $ocorrencias[$k] = $novo; break; } } $_SESSION['msg'] = "Ocorrência atualizada!"; }
+            else { $ocorrencias[] = $novo; $_SESSION['msg'] = "Ocorrência registada!"; }
+            salvarDados($arquivos['ocorrencias'], $ocorrencias); $tab = 'ocorrencias';
+        }
         elseif ($acao === 'salvar_utilizacao') {
             $id = !empty($_POST['utilizacao_id']) ? $_POST['utilizacao_id'] : uniqid();
             
@@ -604,6 +654,14 @@ if (isset($_GET['excluir']) && isset($_GET['tipo']) && $isAdmin) {
         foreach ($lavagens as $k => $v) { if ($v['id'] === $id) { if(!empty($v['anexo']) && file_exists($v['anexo'])) { unlink($v['anexo']); } unset($lavagens[$k]); } } salvarDados($arquivos['lavagens'], $lavagens); $_SESSION['msg'] = "Lavagem excluída!"; $tab = 'lavagens';
     } elseif ($tipo === 'emprestimo') {
         foreach ($emprestimos as $k => $v) { if ($v['id'] === $id) { if(!empty($v['foto_retirada']) && file_exists($v['foto_retirada'])) { unlink($v['foto_retirada']); } if(!empty($v['foto_entrega']) && file_exists($v['foto_entrega'])) { unlink($v['foto_entrega']); } if(!empty($v['fotos_retirada']) && is_array($v['fotos_retirada'])) { foreach($v['fotos_retirada'] as $foto) { if(file_exists($foto)) unlink($foto); } } if(!empty($v['fotos_entrega']) && is_array($v['fotos_entrega'])) { foreach($v['fotos_entrega'] as $foto) { if(file_exists($foto)) unlink($foto); } } unset($emprestimos[$k]); } } salvarDados($arquivos['emprestimos'], $emprestimos); $_SESSION['msg'] = "Empréstimo excluído!"; $tab = 'emprestimos';
+    } elseif ($tipo === 'ocorrencia') {
+        foreach ($ocorrencias as $k => $v) {
+            if ($v['id'] === $id) {
+                if (!empty($v['fotos']) && is_array($v['fotos'])) { foreach ($v['fotos'] as $foto) { apagarUploadSeguro($foto); } }
+                unset($ocorrencias[$k]);
+            }
+        }
+        salvarDados($arquivos['ocorrencias'], $ocorrencias); $_SESSION['msg'] = "Ocorrência excluída!"; $tab = 'ocorrencias';
     } elseif ($tipo === 'utilizacao') {
         foreach ($utilizacao as $k => $v) { if ($v['id'] === $id) unset($utilizacao[$k]); } salvarDados($arquivos['utilizacao'], $utilizacao); $_SESSION['msg'] = "Registo excluído!"; $tab = 'utilizacao';
     }
@@ -825,12 +883,13 @@ else { $data_fim = isset($_COOKIE['filtro_data_fim']) ? $_COOKIE['filtro_data_fi
 if (isset($_GET['filtro_placa'])) { $filtro_placa = $_GET['filtro_placa']; setcookie('filtro_placa', $filtro_placa, time() + (86400 * 30), "/"); } 
 else { $filtro_placa = isset($_COOKIE['filtro_placa']) ? $_COOKIE['filtro_placa'] : ''; }
 
-$veiculo_edit = null; $abastecimento_edit = null; $lavagem_edit = null; $emprestimo_edit = null; $utilizacao_edit = null; $cartao_edit = null; $tecnico_edit = null;
+$veiculo_edit = null; $abastecimento_edit = null; $lavagem_edit = null; $emprestimo_edit = null; $ocorrencia_edit = null; $utilizacao_edit = null; $cartao_edit = null; $tecnico_edit = null;
 if ($isAdmin) {
     if (isset($_GET['edit_veiculo'])) { foreach ($veiculos as $v) { if ($v['id'] === $_GET['edit_veiculo']) { $veiculo_edit = $v; $tab_ativa = 'veiculos'; break; } } }
     if (isset($_GET['edit_abastecimento'])) { foreach ($abastecimentos as $a) { if ($a['id'] === $_GET['edit_abastecimento']) { $abastecimento_edit = $a; $tab_ativa = 'abastecimentos'; break; } } }
     if (isset($_GET['edit_lavagem'])) { foreach ($lavagens as $l) { if ($l['id'] === $_GET['edit_lavagem']) { $lavagem_edit = $l; $tab_ativa = 'lavagens'; break; } } }
     if (isset($_GET['edit_emprestimo'])) { foreach ($emprestimos as $e) { if ($e['id'] === $_GET['edit_emprestimo']) { $emprestimo_edit = $e; $tab_ativa = 'emprestimos'; break; } } }
+    if (isset($_GET['edit_ocorrencia'])) { foreach ($ocorrencias as $o) { if ($o['id'] === $_GET['edit_ocorrencia']) { $ocorrencia_edit = $o; $tab_ativa = 'ocorrencias'; break; } } }
     if (isset($_GET['edit_utilizacao'])) { foreach ($utilizacao as $u) { if ($u['id'] === $_GET['edit_utilizacao']) { $utilizacao_edit = $u; $tab_ativa = 'utilizacao'; break; } } }
     if (isset($_GET['edit_cartao'])) { foreach ($cartoes as $c) { if ($c['id'] === $_GET['edit_cartao']) { $cartao_edit = $c; $tab_ativa = 'cartoes'; break; } } }
     if (isset($_GET['edit_tecnico'])) { foreach ($tecnicos as $t) { if ($t['id'] === $_GET['edit_tecnico']) { $tecnico_edit = $t; $tab_ativa = 'tecnicos'; break; } } }
@@ -859,6 +918,7 @@ function aplicarFiltros($dados, $dt_ini, $dt_fim, $placa) {
 $abastecimentos_filtrados = aplicarFiltros($abastecimentos, $data_inicio, $data_fim, $filtro_placa);
 $lavagens_filtradas = aplicarFiltros($lavagens, $data_inicio, $data_fim, $filtro_placa);
 $emprestimos_filtrados = aplicarFiltros($emprestimos, $data_inicio, $data_fim, $filtro_placa);
+$ocorrencias_filtradas = aplicarFiltros($ocorrencias, $data_inicio, $data_fim, $filtro_placa);
 $utilizacao_filtrada = aplicarFiltros($utilizacao, $data_inicio, $data_fim, $filtro_placa);
 
 $sort_col = isset($_GET['sort_col']) ? $_GET['sort_col'] : (isset($_COOKIE['sort_col']) ? $_COOKIE['sort_col'] : 'data');
@@ -882,6 +942,7 @@ usort($utilizacao_filtrada, $funcaoOrdenacao);
 usort($abastecimentos_filtrados, $funcaoOrdenacao);
 usort($lavagens_filtradas, $funcaoOrdenacao);
 usort($emprestimos_filtrados, $funcaoOrdenacao);
+usort($ocorrencias_filtradas, $funcaoOrdenacao);
 
 $veiculos_ordenados = $veiculos;
 usort($veiculos_ordenados, function($a, $b) {
@@ -1536,6 +1597,7 @@ usort($lancamentos_abastecimento_lavagem, function ($a, $b) use ($funcaoOrdenaca
         <li class="nav-item"><a class="nav-link <?php echo $tab_ativa === 'usuarios' ? 'active' : ''; ?> text-danger" href="?tab=usuarios"><i class="bi bi-shield-lock"></i> Acessos</a></li>
         <?php endif; ?>
         <li class="nav-item"><a class="nav-link <?php echo $tab_ativa === 'emprestimos' ? 'active' : ''; ?>" href="?tab=emprestimos"><i class="bi bi-car-front-fill"></i> Empréstimo de Carro</a></li>
+        <li class="nav-item"><a class="nav-link <?php echo $tab_ativa === 'ocorrencias' ? 'active' : ''; ?>" href="?tab=ocorrencias"><i class="bi bi-exclamation-triangle"></i> Ocorrências</a></li>
         <li class="nav-item ms-auto"><a class="nav-link <?php echo $tab_ativa === 'perfil' ? 'active' : ''; ?>" href="?tab=perfil"><i class="bi bi-key"></i> Senha</a></li>
     </ul>
 
@@ -2381,6 +2443,85 @@ usort($lancamentos_abastecimento_lavagem, function ($a, $b) use ($funcaoOrdenaca
                                             <?php if($isAdmin): ?><td><div class="d-inline-flex flex-column gap-1"><a href="?tab=emprestimos&edit_emprestimo=<?php echo $emp['id']; ?>" class="btn btn-primary btn-sm"><i class="bi bi-pencil"></i></a> <button type="button" class="btn btn-danger btn-sm" onclick="confirmDelete('?excluir=<?php echo $emp['id']; ?>&tipo=emprestimo')"><i class="bi bi-trash"></i></button> <a href="?download_emprestimo_fotos=<?php echo $emp['id']; ?>" class="btn btn-success btn-sm" title="Baixar fotos em ZIP"><i class="bi bi-download"></i></a></div></td><?php endif; ?>
                                         </tr>
                                         <?php endforeach; ?>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <?php endif; ?>
+
+        <!-- ABA: OCORRÊNCIAS -->
+        <?php if ($tab_ativa === 'ocorrencias'): ?>
+        <div class="tab-pane active fade show">
+            <div class="row">
+                <?php if($isAdmin): ?>
+                <div class="col-md-4">
+                    <div class="card <?php echo $ocorrencia_edit ? 'border-primary' : ''; ?>">
+                        <div class="card-header <?php echo $ocorrencia_edit ? 'bg-primary text-white' : 'bg-light'; ?>"><b><?php echo $ocorrencia_edit ? 'Editar Ocorrência' : 'Nova Ocorrência'; ?></b></div>
+                        <div class="card-body">
+                            <form method="POST" enctype="multipart/form-data">
+                                <input type="hidden" name="acao" value="salvar_ocorrencia">
+                                <input type="hidden" name="ocorrencia_id" value="<?php echo $ocorrencia_edit ? htmlspecialchars($ocorrencia_edit['id']) : ''; ?>">
+                                <div class="mb-3"><label>Data</label><input type="date" name="data" class="form-control" required value="<?php echo $ocorrencia_edit ? htmlspecialchars($ocorrencia_edit['data']) : date('Y-m-d'); ?>"></div>
+                                <div class="mb-3"><label>Condutor</label><select name="condutor" class="form-select" required><option value="">Selecione...</option><?php foreach($tecnicos as $t): ?><option value="<?php echo htmlspecialchars($t['nome']); ?>" <?php echo ($ocorrencia_edit && $ocorrencia_edit['condutor'] === $t['nome']) ? 'selected' : ''; ?>><?php echo htmlspecialchars($t['nome']); ?></option><?php endforeach; ?></select></div>
+                                <div class="mb-3"><label>Veículo</label><select name="placa" class="form-select" required><option value="">Selecione...</option><?php foreach($veiculos as $v): if((isset($v['ativo']) && $v['ativo'] == 0) && (!$ocorrencia_edit || $ocorrencia_edit['placa'] !== $v['placa'])) continue; ?><option value="<?php echo htmlspecialchars($v['placa']); ?>" <?php echo ($ocorrencia_edit && $ocorrencia_edit['placa'] === $v['placa']) ? 'selected' : ''; ?>><?php echo htmlspecialchars($v['placa'] . ' - ' . $v['modelo']); ?></option><?php endforeach; ?></select></div>
+                                <div class="mb-3"><label>Ocorrência</label><textarea name="ocorrencia" class="form-control" rows="5" required><?php echo $ocorrencia_edit ? htmlspecialchars($ocorrencia_edit['ocorrencia']) : ''; ?></textarea></div>
+                                <div class="mb-3">
+                                    <label>Fotos</label>
+                                    <input type="file" name="fotos_ocorrencia[]" class="form-control form-control-sm" accept=".jpg,.jpeg,.png,.pdf" multiple>
+                                    <?php $fotos_ocorrencia_edit = $ocorrencia_edit && isset($ocorrencia_edit['fotos']) && is_array($ocorrencia_edit['fotos']) ? $ocorrencia_edit['fotos'] : array(); ?>
+                                    <?php if(!empty($fotos_ocorrencia_edit)): ?>
+                                        <div class="mt-2 pt-2 border-top">
+                                            <label class="small fw-bold text-danger mb-1 d-block">Marque para apagar:</label>
+                                            <?php foreach($fotos_ocorrencia_edit as $i => $foto): ?>
+                                                <div class="form-check mb-0">
+                                                    <input class="form-check-input" type="checkbox" name="remover_fotos_ocorrencia[]" value="<?php echo htmlspecialchars($foto); ?>" id="rm_ocorrencia_<?php echo $i; ?>">
+                                                    <label class="form-check-label small" for="rm_ocorrencia_<?php echo $i; ?>"><a href="<?php echo htmlspecialchars($foto); ?>" target="_blank">Foto <?php echo $i + 1; ?></a></label>
+                                                </div>
+                                            <?php endforeach; ?>
+                                        </div>
+                                    <?php endif; ?>
+                                </div>
+                                <button type="submit" class="btn btn-primary w-100 mb-2">Registar</button>
+                                <?php if($ocorrencia_edit): ?><a href="?tab=ocorrencias" class="btn btn-outline-secondary w-100">Cancelar</a><?php endif; ?>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                <?php endif; ?>
+
+                <div class="<?php echo $isAdmin ? 'col-md-8' : 'col-md-12'; ?>">
+                    <div class="card">
+                        <div class="card-header bg-light"><b>Histórico de Ocorrências</b></div>
+                        <div class="card-body p-3">
+                            <div class="table-responsive">
+                                <table class="table table-striped table-hover align-middle mb-0">
+                                    <thead class="table-dark"><tr>
+                                        <th><a href="<?php echo urlOrdenacao('data', $sort_col, $sort_dir, 'ocorrencias'); ?>" class="text-white text-decoration-none">Data <?php echo $sort_col == 'data' ? ($sort_dir == 'asc' ? '↑' : '↓') : ''; ?></a></th>
+                                        <th><a href="<?php echo urlOrdenacao('condutor', $sort_col, $sort_dir, 'ocorrencias'); ?>" class="text-white text-decoration-none">Condutor <?php echo $sort_col == 'condutor' ? ($sort_dir == 'asc' ? '↑' : '↓') : ''; ?></a></th>
+                                        <th><a href="<?php echo urlOrdenacao('placa', $sort_col, $sort_dir, 'ocorrencias'); ?>" class="text-white text-decoration-none">Veículo <?php echo $sort_col == 'placa' ? ($sort_dir == 'asc' ? '↑' : '↓') : ''; ?></a></th>
+                                        <th>Ocorrência</th><th>Fotos</th><?php if($isAdmin): ?><th>Ação</th><?php endif; ?>
+                                    </tr></thead>
+                                    <tbody>
+                                        <?php foreach($ocorrencias_filtradas as $ocorrencia): ?>
+                                        <tr data-bs-toggle="tooltip" data-bs-placement="top" title="<?php echo getTooltipAuditoria($ocorrencia); ?>">
+                                            <td><?php echo date('d/m/Y', strtotime($ocorrencia['data'])); ?></td>
+                                            <td><?php echo htmlspecialchars($ocorrencia['condutor']); ?></td>
+                                            <td><span class="badge bg-secondary"><?php echo htmlspecialchars($ocorrencia['placa']); ?></span></td>
+                                            <td style="min-width: 260px;"><?php echo nl2br(htmlspecialchars($ocorrencia['ocorrencia'])); ?></td>
+                                            <td style="min-width: 120px;">
+                                                <?php $fotos_ocorrencia = isset($ocorrencia['fotos']) && is_array($ocorrencia['fotos']) ? $ocorrencia['fotos'] : array(); ?>
+                                                <?php if(!empty($fotos_ocorrencia)): foreach($fotos_ocorrencia as $i => $foto): ?>
+                                                    <a href="<?php echo htmlspecialchars($foto); ?>" target="_blank" class="badge bg-warning text-dark text-decoration-none mb-1 gallery-photo" data-gallery="ocorrencia-<?php echo htmlspecialchars($ocorrencia['id']); ?>" data-gallery-title="Fotos da ocorrência"><i class="bi bi-camera-fill"></i> Foto <?php echo $i + 1; ?></a>
+                                                <?php endforeach; else: ?><span class="badge bg-light text-muted">-</span><?php endif; ?>
+                                            </td>
+                                            <?php if($isAdmin): ?><td><div class="d-inline-flex flex-column gap-1"><a href="?tab=ocorrencias&edit_ocorrencia=<?php echo urlencode($ocorrencia['id']); ?>" class="btn btn-primary btn-sm" title="Editar"><i class="bi bi-pencil"></i></a><button type="button" class="btn btn-danger btn-sm" title="Excluir" onclick="confirmDelete('?excluir=<?php echo urlencode($ocorrencia['id']); ?>&tipo=ocorrencia')"><i class="bi bi-trash"></i></button></div></td><?php endif; ?>
+                                        </tr>
+                                        <?php endforeach; ?>
+                                        <?php if(empty($ocorrencias_filtradas)): ?><tr><td colspan="<?php echo $isAdmin ? 6 : 5; ?>" class="text-center text-muted">Nenhuma ocorrência registada no período.</td></tr><?php endif; ?>
                                     </tbody>
                                 </table>
                             </div>
